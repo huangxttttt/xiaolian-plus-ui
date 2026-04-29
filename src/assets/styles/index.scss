@@ -24,6 +24,10 @@ body {
     sans-serif;
 }
 
+body.el-popup-parent--hidden {
+  padding-right: 0 !important;
+}
+
 label {
   font-weight: 700;
 }
@@ -31,6 +35,8 @@ label {
 html {
   height: 100%;
   box-sizing: border-box;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 html.dark .svg-icon,
