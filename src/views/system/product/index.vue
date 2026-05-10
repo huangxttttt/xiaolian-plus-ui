@@ -59,8 +59,11 @@
         <el-table-column label="最近销售金额" align="center" prop="latestSaleAmount" width="130" />
         <el-table-column label="销售成本价格" align="center" prop="latestCostPrice" width="130" />
         <el-table-column label="备注" align="center" prop="remark" min-width="140" />
-        <el-table-column label="操作" align="center" width="120" class-name="small-padding fixed-width">
+        <el-table-column label="操作" align="center" width="150" class-name="small-padding fixed-width">
           <template #default="scope">
+            <el-tooltip content="价格走势" placement="top">
+              <el-button link type="primary" icon="TrendCharts" @click="handlePriceTrend(scope.row)" v-hasPermi="['system:product:query']"></el-button>
+            </el-tooltip>
             <el-tooltip content="修改" placement="top">
               <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:product:edit']"></el-button>
             </el-tooltip>
@@ -113,12 +116,49 @@
         </div>
       </template>
     </el-dialog>
+
+    <el-dialog :title="priceDialog.title" v-model="priceDialog.visible" width="900px" append-to-body @closed="disposePriceChart">
+      <el-descriptions v-if="priceProduct" :column="4" border>
+        <el-descriptions-item label="商品名称">{{ priceProduct.productName }}</el-descriptions-item>
+        <el-descriptions-item label="商品规格">{{ priceProduct.specification }}</el-descriptions-item>
+        <el-descriptions-item label="提供商">{{ priceProduct.supplier }}</el-descriptions-item>
+        <el-descriptions-item label="商品大类">{{ priceProduct.categoryName }}</el-descriptions-item>
+      </el-descriptions>
+
+      <el-form class="mt-3" :inline="true">
+        <el-form-item label="记录日期">
+          <el-date-picker
+            v-model="priceDateRange"
+            type="daterange"
+            value-format="YYYY-MM-DD"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" icon="Search" @click="handlePriceQuery">搜索</el-button>
+          <el-button icon="Refresh" @click="resetPriceQuery">重置</el-button>
+        </el-form-item>
+      </el-form>
+
+      <el-empty v-if="!priceRecords.length" description="暂无价格记录" />
+      <div v-show="priceRecords.length" ref="priceChartRef" style="height: 420px; width: 100%"></div>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="priceDialog.visible = false">关 闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup name="Product" lang="ts">
-import { listProduct, getProduct, delProduct, addProduct, updateProduct } from '@/api/system/product';
-import { ProductVO, ProductQuery, ProductForm } from '@/api/system/product/types';
+import * as echarts from 'echarts';
+import { listProduct, getProduct, delProduct, addProduct, updateProduct, listProductPriceHistory } from '@/api/system/product';
+import { ProductVO, ProductQuery, ProductForm, ProductPriceRecordVO } from '@/api/system/product/types';
 import { listProductCategoryOptions } from '@/api/system/productCategory';
 import { ProductCategoryVO } from '@/api/system/productCategory/types';
 
@@ -133,11 +173,21 @@ const ids = ref<Array<string | number>>([]);
 const single = ref(true);
 const multiple = ref(true);
 const total = ref(0);
+const priceProduct = ref<ProductVO>();
+const priceRecords = ref<ProductPriceRecordVO[]>([]);
+const priceDateRange = ref<string[]>([]);
 
 const queryFormRef = ref<ElFormInstance>();
 const productFormRef = ref<ElFormInstance>();
+const priceChartRef = ref<HTMLElement>();
+let priceChart: echarts.ECharts | undefined;
 
 const dialog = reactive<DialogOption>({
+  visible: false,
+  title: ''
+});
+
+const priceDialog = reactive<DialogOption>({
   visible: false,
   title: ''
 });
@@ -226,6 +276,103 @@ const handleUpdate = async (row?: ProductVO) => {
   dialog.title = '修改商品';
 };
 
+const handlePriceTrend = async (row: ProductVO) => {
+  priceProduct.value = row;
+  priceDateRange.value = [];
+  priceDialog.title = `${row.productName} 价格走势`;
+  priceDialog.visible = true;
+  await getPriceHistory();
+};
+
+const getPriceHistory = async () => {
+  if (!priceProduct.value?.productId) {
+    return;
+  }
+  const res = await listProductPriceHistory(priceProduct.value.productId, {
+    beginDate: priceDateRange.value?.[0],
+    endDate: priceDateRange.value?.[1]
+  });
+  priceRecords.value = res.data || [];
+  await nextTick();
+  renderPriceChart();
+};
+
+const handlePriceQuery = async () => {
+  await getPriceHistory();
+};
+
+const resetPriceQuery = async () => {
+  priceDateRange.value = [];
+  await getPriceHistory();
+};
+
+const renderPriceChart = () => {
+  if (!priceChartRef.value || !priceRecords.value.length) {
+    disposePriceChart();
+    return;
+  }
+  if (!priceChart) {
+    priceChart = echarts.init(priceChartRef.value);
+    window.addEventListener('resize', resizePriceChart);
+  }
+  priceChart.setOption({
+    tooltip: {
+      trigger: 'axis',
+      valueFormatter: (value: number) => Number(value || 0).toFixed(2)
+    },
+    legend: {
+      top: 0,
+      data: ['销售价', '成本价']
+    },
+    grid: {
+      left: 48,
+      right: 24,
+      top: 48,
+      bottom: 36
+    },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: priceRecords.value.map((item) => item.recordDate)
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: {
+        formatter: (value: number) => Number(value || 0).toFixed(2)
+      }
+    },
+    series: [
+      {
+        name: '销售价',
+        type: 'line',
+        smooth: true,
+        symbolSize: 7,
+        data: priceRecords.value.map((item) => Number(item.saleAmount || 0))
+      },
+      {
+        name: '成本价',
+        type: 'line',
+        smooth: true,
+        symbolSize: 7,
+        data: priceRecords.value.map((item) => Number(item.costPrice || 0))
+      }
+    ]
+  });
+  priceChart.resize();
+};
+
+const resizePriceChart = () => {
+  priceChart?.resize();
+};
+
+const disposePriceChart = () => {
+  if (priceChart) {
+    window.removeEventListener('resize', resizePriceChart);
+    priceChart.dispose();
+    priceChart = undefined;
+  }
+};
+
 const submitForm = () => {
   productFormRef.value?.validate(async (valid: boolean) => {
     if (valid) {
@@ -263,5 +410,9 @@ const handleExport = () => {
 onMounted(() => {
   getCategoryOptions();
   getList();
+});
+
+onUnmounted(() => {
+  disposePriceChart();
 });
 </script>

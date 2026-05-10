@@ -1,6 +1,6 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { DeliveryOrderVO, DeliveryOrderForm, DeliveryOrderQuery } from '@/api/system/deliveryOrder/types';
+import { DeliveryArchiveForm, DeliveryOrderVO, DeliveryOrderForm, DeliveryOrderQuery } from '@/api/system/deliveryOrder/types';
 
 export const listDeliveryOrder = (query?: DeliveryOrderQuery): AxiosPromise<DeliveryOrderVO[]> => {
   return request({
@@ -30,6 +30,14 @@ export const updateDeliveryOrder = (data: DeliveryOrderForm) => {
     url: '/system/deliveryOrder',
     method: 'put',
     data: data
+  });
+};
+
+export const archiveDeliveryOrder = (deliveryId: string | number, data: DeliveryArchiveForm) => {
+  return request({
+    url: '/system/deliveryOrder/' + deliveryId + '/archive',
+    method: 'put',
+    data
   });
 };
 

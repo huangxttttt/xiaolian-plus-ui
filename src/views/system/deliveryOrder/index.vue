@@ -34,12 +34,12 @@
             <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['system:deliveryOrder:add']">新增配货</el-button>
           </el-col>
           <el-col :span="1.5">
-            <el-button type="success" plain icon="Edit" :disabled="single" @click="handleUpdate()" v-hasPermi="['system:deliveryOrder:edit']">
+            <el-button type="success" plain icon="Edit" :disabled="single || selectedHasArchived" @click="handleUpdate()" v-hasPermi="['system:deliveryOrder:edit']">
               修改
             </el-button>
           </el-col>
           <el-col :span="1.5">
-            <el-button type="danger" plain icon="Delete" :disabled="multiple" @click="handleDelete()" v-hasPermi="['system:deliveryOrder:remove']">
+            <el-button type="danger" plain icon="Delete" :disabled="multiple || selectedHasArchived" @click="handleDelete()" v-hasPermi="['system:deliveryOrder:remove']">
               删除
             </el-button>
           </el-col>
@@ -57,16 +57,43 @@
         <el-table-column label="订单总金额" align="center" prop="totalAmount" width="130" />
         <el-table-column label="状态" align="center" prop="status" width="100" />
         <el-table-column label="备注" align="center" prop="remark" min-width="160" />
-        <el-table-column label="操作" align="center" width="150" class-name="small-padding fixed-width">
+        <el-table-column label="操作" align="center" width="220" class-name="small-padding fixed-width">
           <template #default="scope">
             <el-tooltip content="详情" placement="top">
               <el-button link type="primary" icon="View" @click="handleDetail(scope.row)" v-hasPermi="['system:deliveryOrder:query']"></el-button>
             </el-tooltip>
+            <el-tooltip content="打印销售单" placement="top">
+              <el-button link type="primary" icon="Printer" @click="handlePrint(scope.row)" v-hasPermi="['system:deliveryOrder:query']"></el-button>
+            </el-tooltip>
+            <el-tooltip content="归档" placement="top">
+              <el-button
+                link
+                type="primary"
+                icon="CircleCheck"
+                :disabled="scope.row.status === '已归档'"
+                @click="handleArchive(scope.row)"
+                v-hasPermi="['system:deliveryOrder:edit']"
+              ></el-button>
+            </el-tooltip>
             <el-tooltip content="修改" placement="top">
-              <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:deliveryOrder:edit']"></el-button>
+              <el-button
+                link
+                type="primary"
+                icon="Edit"
+                :disabled="scope.row.status === '已归档'"
+                @click="handleUpdate(scope.row)"
+                v-hasPermi="['system:deliveryOrder:edit']"
+              ></el-button>
             </el-tooltip>
             <el-tooltip content="删除" placement="top">
-              <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['system:deliveryOrder:remove']"></el-button>
+              <el-button
+                link
+                type="primary"
+                icon="Delete"
+                :disabled="scope.row.status === '已归档'"
+                @click="handleDelete(scope.row)"
+                v-hasPermi="['system:deliveryOrder:remove']"
+              ></el-button>
             </el-tooltip>
           </template>
         </el-table-column>
@@ -98,7 +125,7 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="状态" prop="status">
-              <el-select v-model="form.status" style="width: 100%">
+              <el-select v-model="form.status" disabled style="width: 100%">
                 <el-option label="未归档" value="未归档" />
                 <el-option label="已归档" value="已归档" />
               </el-select>
@@ -111,14 +138,20 @@
 
         <el-divider content-position="left">客户订单</el-divider>
         <div class="mb8">
-          <el-select v-model="selectedCustomerId" placeholder="请选择客户" filterable style="width: 260px">
+          <el-select
+            v-model="selectedCustomerId"
+            placeholder="选择客户后自动添加"
+            filterable
+            :disabled="!form.routeId"
+            style="width: 260px"
+            @change="addCustomerOrder"
+          >
             <el-option v-for="item in availableCustomers" :key="item.customerId" :label="item.name" :value="item.customerId" />
           </el-select>
-          <el-button class="ml-2" type="primary" icon="Plus" @click="addCustomerOrder">添加客户</el-button>
         </div>
 
         <el-empty v-if="!form.customerOrders.length" description="请选择配送地后添加客户订单" />
-        <el-collapse v-else>
+        <el-collapse v-else v-model="activeCustomerOrderNames">
           <el-collapse-item v-for="(order, orderIndex) in form.customerOrders" :key="order.customerId" :name="String(order.customerId)">
             <template #title>
               <span class="font-medium">{{ order.customerName }}</span>
@@ -199,6 +232,9 @@
             <span class="font-medium">{{ order.customerName }}</span>
             <span v-if="order.customerPhone" class="ml-3 text-gray-500">{{ order.customerPhone }}</span>
             <span class="ml-3 text-gray-500">小计：{{ formatAmount(order.totalAmount) }}</span>
+            <span v-if="detailData?.status === '已归档'" class="ml-3 text-gray-500">实收：{{ formatAmount(order.receivedAmount) }}</span>
+            <span v-if="detailData?.status === '已归档'" class="ml-3 text-gray-500">未收：{{ formatAmount(order.unpaidAmount) }}</span>
+            <el-button class="ml-3" link type="primary" icon="Printer" @click.stop="handlePrint(detailData, order.orderId)">打印</el-button>
           </template>
           <el-table border :data="order.items">
             <el-table-column label="商品" prop="productName" min-width="160" />
@@ -216,7 +252,50 @@
       </el-collapse>
       <template #footer>
         <div class="dialog-footer">
+          <el-button v-if="detailData" type="primary" plain icon="Printer" @click="handlePrint(detailData)">打印销售单</el-button>
           <el-button @click="detailDialog.visible = false">关 闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <el-dialog :title="archiveDialog.title" v-model="archiveDialog.visible" width="860px" append-to-body>
+      <el-descriptions v-if="archiveData" :column="3" border>
+        <el-descriptions-item label="配送日期">{{ archiveData.deliveryDate }}</el-descriptions-item>
+        <el-descriptions-item label="配送地">{{ archiveData.routeName }}</el-descriptions-item>
+        <el-descriptions-item label="订单总金额">{{ formatAmount(archiveData.totalAmount) }}</el-descriptions-item>
+      </el-descriptions>
+
+      <el-divider content-position="left">客户收款确认</el-divider>
+      <el-table border :data="archiveReceipts">
+        <el-table-column label="客户" prop="customerName" min-width="150" />
+        <el-table-column label="联系电话" prop="customerPhone" width="140" />
+        <el-table-column label="订单金额" width="120">
+          <template #default="{ row }">{{ formatAmount(row.totalAmount) }}</template>
+        </el-table-column>
+        <el-table-column label="实收金额" width="170">
+          <template #default="{ row }">
+            <el-input-number
+              v-model="row.receivedAmount"
+              :precision="2"
+              :min="0"
+              :max="Number(row.totalAmount || 0)"
+              controls-position="right"
+              style="width: 140px"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="未收金额" width="120">
+          <template #default="{ row }">{{ formatAmount(calcArchiveUnpaid(row)) }}</template>
+        </el-table-column>
+      </el-table>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <span class="mr-4">订单合计：{{ formatAmount(archiveTotalAmount) }}</span>
+          <span class="mr-4">实收合计：{{ formatAmount(archiveReceivedAmount) }}</span>
+          <span class="mr-4">未收合计：{{ formatAmount(archiveUnpaidAmount) }}</span>
+          <el-button :loading="archiveLoading" type="primary" @click="submitArchive">确认归档</el-button>
+          <el-button @click="archiveDialog.visible = false">取 消</el-button>
         </div>
       </template>
     </el-dialog>
@@ -224,7 +303,7 @@
 </template>
 
 <script setup name="DeliveryOrder" lang="ts">
-import { listDeliveryOrder, getDeliveryOrder, delDeliveryOrder, addDeliveryOrder, updateDeliveryOrder } from '@/api/system/deliveryOrder';
+import { listDeliveryOrder, getDeliveryOrder, delDeliveryOrder, addDeliveryOrder, updateDeliveryOrder, archiveDeliveryOrder } from '@/api/system/deliveryOrder';
 import { CustomerOrderVO, DeliveryOrderForm, DeliveryOrderItemVO, DeliveryOrderQuery, DeliveryOrderVO } from '@/api/system/deliveryOrder/types';
 import { listRouteOptions } from '@/api/system/route';
 import { RouteVO } from '@/api/system/route/types';
@@ -234,16 +313,19 @@ import { listProduct } from '@/api/system/product';
 import { ProductVO } from '@/api/system/product/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
+const router = useRouter();
 
 const deliveryOrderList = ref<DeliveryOrderVO[]>([]);
 const routeOptions = ref<RouteVO[]>([]);
 const customerOptions = ref<CustomerVO[]>([]);
 const productOptions = ref<ProductVO[]>([]);
 const selectedCustomerId = ref<string | number>();
+const activeCustomerOrderNames = ref<string[]>([]);
 const buttonLoading = ref(false);
 const loading = ref(true);
 const showSearch = ref(true);
 const ids = ref<Array<string | number>>([]);
+const selectedRows = ref<DeliveryOrderVO[]>([]);
 const single = ref(true);
 const multiple = ref(true);
 const total = ref(0);
@@ -262,6 +344,26 @@ const detailDialog = reactive<DialogOption>({
 });
 
 const detailData = ref<DeliveryOrderVO>();
+
+interface ArchiveReceiptRow {
+  orderId: string | number;
+  customerName?: string;
+  customerPhone?: string;
+  totalAmount?: number;
+  receivedAmount: number;
+}
+
+const archiveDialog = reactive<DialogOption>({
+  visible: false,
+  title: ''
+});
+const archiveData = ref<DeliveryOrderVO>();
+const archiveReceipts = ref<ArchiveReceiptRow[]>([]);
+const archiveLoading = ref(false);
+
+const archiveTotalAmount = computed(() => archiveReceipts.value.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0));
+const archiveReceivedAmount = computed(() => archiveReceipts.value.reduce((sum, item) => sum + Number(item.receivedAmount || 0), 0));
+const archiveUnpaidAmount = computed(() => archiveReceipts.value.reduce((sum, item) => sum + calcArchiveUnpaid(item), 0));
 
 const today = () => {
   const date = new Date();
@@ -296,6 +398,8 @@ const data = reactive<PageData<DeliveryOrderForm, DeliveryOrderQuery>>({
 });
 
 const { queryParams, form, rules } = toRefs(data);
+
+const selectedHasArchived = computed(() => selectedRows.value.some((item) => item.status === '已归档'));
 
 const availableCustomers = computed(() => {
   const used = new Set(form.value.customerOrders.map((item) => item.customerId));
@@ -359,6 +463,7 @@ const getList = async () => {
 const handleRouteChange = async () => {
   form.value.customerOrders = [];
   selectedCustomerId.value = undefined;
+  activeCustomerOrderNames.value = [];
   await getCustomersByRoute(form.value.routeId);
 };
 
@@ -370,6 +475,7 @@ const cancel = () => {
 const reset = () => {
   form.value = { ...initFormData, customerOrders: [] };
   selectedCustomerId.value = undefined;
+  activeCustomerOrderNames.value = [];
   customerOptions.value = [];
   deliveryOrderFormRef.value?.resetFields();
 };
@@ -385,6 +491,7 @@ const resetQuery = () => {
 };
 
 const handleSelectionChange = (selection: DeliveryOrderVO[]) => {
+  selectedRows.value = selection;
   ids.value = selection.map((item) => item.deliveryId);
   single.value = selection.length !== 1;
   multiple.value = !selection.length;
@@ -402,6 +509,7 @@ const handleUpdate = async (row?: DeliveryOrderVO) => {
   const res = await getDeliveryOrder(_deliveryId);
   Object.assign(form.value, res.data);
   form.value.customerOrders = res.data.customerOrders || [];
+  activeCustomerOrderNames.value = form.value.customerOrders[0]?.customerId ? [String(form.value.customerOrders[0].customerId)] : [];
   await getCustomersByRoute(form.value.routeId);
   dialog.visible = true;
   dialog.title = '修改配货装车单';
@@ -413,6 +521,75 @@ const handleDetail = async (row: DeliveryOrderVO) => {
   detailDialog.visible = true;
 };
 
+const handlePrint = (row?: DeliveryOrderVO, orderId?: string | number) => {
+  if (!row?.deliveryId) return;
+  const route = router.resolve({
+    name: 'DeliveryOrderPrint',
+    params: { deliveryId: row.deliveryId },
+    query: orderId ? { orderId } : undefined
+  });
+  window.open(route.href, '_blank');
+};
+
+const handleArchive = async (row: DeliveryOrderVO) => {
+  const res = await getDeliveryOrder(row.deliveryId);
+  archiveData.value = res.data;
+  archiveReceipts.value = (res.data.customerOrders || []).map((order) => ({
+    orderId: order.orderId!,
+    customerName: order.customerName,
+    customerPhone: order.customerPhone,
+    totalAmount: Number(order.totalAmount || 0),
+    receivedAmount: 0
+  }));
+  archiveDialog.title = `${row.deliveryDate} ${row.routeName} 归档确认`;
+  archiveDialog.visible = true;
+};
+
+const calcArchiveUnpaid = (row: ArchiveReceiptRow) => {
+  return Math.max(Number(row.totalAmount || 0) - Number(row.receivedAmount || 0), 0);
+};
+
+const validateArchiveReceipts = () => {
+  if (!archiveData.value?.deliveryId || !archiveReceipts.value.length) {
+    proxy?.$modal.msgWarning('没有可归档的客户订单');
+    return false;
+  }
+  for (const item of archiveReceipts.value) {
+    const receivedAmount = Number(item.receivedAmount);
+    const totalAmount = Number(item.totalAmount || 0);
+    if (!item.orderId || Number.isNaN(receivedAmount)) {
+      proxy?.$modal.msgWarning(`${item.customerName || '客户'} 的实收金额不能为空`);
+      return false;
+    }
+    if (receivedAmount < 0) {
+      proxy?.$modal.msgWarning(`${item.customerName || '客户'} 的实收金额不能小于0`);
+      return false;
+    }
+    if (receivedAmount > totalAmount) {
+      proxy?.$modal.msgWarning(`${item.customerName || '客户'} 的实收金额不能大于订单金额`);
+      return false;
+    }
+  }
+  return true;
+};
+
+const submitArchive = async () => {
+  if (!validateArchiveReceipts()) {
+    return;
+  }
+  await proxy?.$modal.confirm(`确认归档？未收合计 ${formatAmount(archiveUnpaidAmount.value)} 将计入客户欠款金额。`);
+  archiveLoading.value = true;
+  await archiveDeliveryOrder(archiveData.value!.deliveryId, {
+    receipts: archiveReceipts.value.map((item) => ({
+      orderId: item.orderId,
+      receivedAmount: Number(item.receivedAmount || 0)
+    }))
+  }).finally(() => (archiveLoading.value = false));
+  archiveDialog.visible = false;
+  proxy?.$modal.msgSuccess('归档成功');
+  await getList();
+};
+
 const addCustomerOrder = () => {
   if (!selectedCustomerId.value) {
     proxy?.$modal.msgWarning('请选择客户');
@@ -420,28 +597,43 @@ const addCustomerOrder = () => {
   }
   const customer = customerOptions.value.find((item) => item.customerId === selectedCustomerId.value);
   if (!customer) return;
-  form.value.customerOrders.push({
+  const order: CustomerOrderVO = {
     customerId: customer.customerId,
     customerName: customer.name,
     customerPhone: customer.phone,
-    items: []
-  });
+    items: [createEmptyItem()]
+  };
+  form.value.customerOrders.push(order);
+  const orderName = String(customer.customerId);
+  if (!activeCustomerOrderNames.value.includes(orderName)) {
+    activeCustomerOrderNames.value.push(orderName);
+  }
   selectedCustomerId.value = undefined;
 };
 
 const removeCustomerOrder = (index: number) => {
+  const order = form.value.customerOrders[index];
   form.value.customerOrders.splice(index, 1);
+  if (order?.customerId) {
+    activeCustomerOrderNames.value = activeCustomerOrderNames.value.filter((item) => item !== String(order.customerId));
+  }
 };
 
-const addItem = (order: CustomerOrderVO) => {
-  order.items.push({
+const createEmptyItem = (): DeliveryOrderItemVO => ({
     categoryId: undefined,
     productPath: [],
     productId: undefined,
     quantity: 1,
     salePrice: 0,
     costPrice: 0
-  });
+});
+
+const addItem = (order: CustomerOrderVO) => {
+  order.items.push(createEmptyItem());
+  const orderName = String(order.customerId);
+  if (!activeCustomerOrderNames.value.includes(orderName)) {
+    activeCustomerOrderNames.value.push(orderName);
+  }
 };
 
 const removeItem = (order: CustomerOrderVO, index: number) => {

@@ -127,13 +127,31 @@
     </el-dialog>
 
     <el-dialog :title="orderDialog.title" v-model="orderDialog.visible" width="1000px" append-to-body>
-      <el-descriptions v-if="orderCustomer" :column="3" border>
+      <el-descriptions v-if="orderCustomer" :column="4" border>
         <el-descriptions-item label="客户名称">{{ orderCustomer.name }}</el-descriptions-item>
         <el-descriptions-item label="联系电话">{{ orderCustomer.phone }}</el-descriptions-item>
         <el-descriptions-item label="配送线路">{{ orderCustomer.routeName }}</el-descriptions-item>
+        <el-descriptions-item label="总消费额">{{ formatAmount(orderSummary.totalAmount) }}</el-descriptions-item>
       </el-descriptions>
 
       <el-divider content-position="left">订单记录</el-divider>
+      <el-form :inline="true" class="mb-3">
+        <el-form-item label="配送日期">
+          <el-date-picker
+            v-model="orderDateRange"
+            type="daterange"
+            value-format="YYYY-MM-DD"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" icon="Search" @click="handleOrderQuery">搜索</el-button>
+          <el-button icon="Refresh" @click="resetOrderQuery">重置</el-button>
+        </el-form-item>
+      </el-form>
       <el-empty v-if="!customerOrders.length" description="暂无订单记录" />
       <el-collapse v-else v-loading="orderLoading">
         <el-collapse-item v-for="order in customerOrders" :key="order.orderId" :name="String(order.orderId)">
@@ -142,6 +160,18 @@
             <span class="ml-3 text-gray-500">{{ order.routeName }}</span>
             <span class="ml-3 text-gray-500">{{ order.deliveryStatus }}</span>
             <span class="ml-3 text-gray-500">小计：{{ formatAmount(order.totalAmount) }}</span>
+            <span class="ml-3 text-gray-500">欠款：{{ formatAmount(order.unpaidAmount) }}</span>
+            <el-button
+              v-if="Number(order.unpaidAmount || 0) > 0"
+              class="ml-3"
+              link
+              type="primary"
+              size="small"
+              @click.stop="handleRepayment(order)"
+              v-hasPermi="['system:customer:edit']"
+            >
+              还款
+            </el-button>
           </template>
           <el-table border :data="order.items">
             <el-table-column label="商品" prop="productName" min-width="160" />
@@ -157,9 +187,42 @@
           </el-table>
         </el-collapse-item>
       </el-collapse>
+      <pagination
+        v-show="orderTotal > 0"
+        :total="orderTotal"
+        v-model:page="orderQueryParams.pageNum"
+        v-model:limit="orderQueryParams.pageSize"
+        @pagination="getOrderList"
+      />
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="orderDialog.visible = false">关 闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <el-dialog :title="repaymentDialog.title" v-model="repaymentDialog.visible" width="460px" append-to-body>
+      <el-descriptions v-if="repaymentOrder" :column="1" border>
+        <el-descriptions-item label="配送日期">{{ repaymentOrder.deliveryDate }}</el-descriptions-item>
+        <el-descriptions-item label="订单金额">{{ formatAmount(repaymentOrder.totalAmount) }}</el-descriptions-item>
+        <el-descriptions-item label="当前欠款">{{ formatAmount(repaymentOrder.unpaidAmount) }}</el-descriptions-item>
+      </el-descriptions>
+      <el-form ref="repaymentFormRef" class="mt-4" :model="repaymentForm" :rules="repaymentRules" label-width="90px">
+        <el-form-item label="还款金额" prop="amount">
+          <el-input-number
+            v-model="repaymentForm.amount"
+            :precision="2"
+            :min="0.01"
+            :max="repaymentMaxAmount"
+            controls-position="right"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button :loading="repaymentLoading" type="primary" @click="submitRepayment">确 定</el-button>
+          <el-button @click="repaymentDialog.visible = false">取 消</el-button>
         </div>
       </template>
     </el-dialog>
@@ -167,8 +230,8 @@
 </template>
 
 <script setup name="Customer" lang="ts">
-import { listCustomer, getCustomer, delCustomer, addCustomer, updateCustomer, getCustomerOrders } from '@/api/system/customer';
-import { CustomerVO, CustomerQuery, CustomerForm } from '@/api/system/customer/types';
+import { listCustomer, getCustomer, delCustomer, addCustomer, updateCustomer, getCustomerOrders, getCustomerOrderSummary, repayCustomerOrder } from '@/api/system/customer';
+import { CustomerVO, CustomerQuery, CustomerForm, CustomerOrderSummaryVO, CustomerOrderQuery } from '@/api/system/customer/types';
 import { CustomerOrderVO } from '@/api/system/deliveryOrder/types';
 import { listRouteOptions } from '@/api/system/route';
 import { RouteVO } from '@/api/system/route/types';
@@ -187,9 +250,18 @@ const total = ref(0);
 const orderLoading = ref(false);
 const orderCustomer = ref<CustomerVO>();
 const customerOrders = ref<CustomerOrderVO[]>([]);
+const orderTotal = ref(0);
+const orderDateRange = ref<string[]>([]);
+const repaymentOrder = ref<CustomerOrderVO>();
+const repaymentLoading = ref(false);
+const orderSummary = reactive<CustomerOrderSummaryVO>({
+  orderCount: 0,
+  totalAmount: 0
+});
 
 const queryFormRef = ref<ElFormInstance>();
 const customerFormRef = ref<ElFormInstance>();
+const repaymentFormRef = ref<ElFormInstance>();
 
 const dialog = reactive<DialogOption>({
   visible: false,
@@ -200,6 +272,42 @@ const orderDialog = reactive<DialogOption>({
   visible: false,
   title: ''
 });
+
+const repaymentDialog = reactive<DialogOption>({
+  visible: false,
+  title: ''
+});
+
+const orderQueryParams = reactive<CustomerOrderQuery>({
+  pageNum: 1,
+  pageSize: 5
+});
+
+const repaymentForm = reactive({
+  amount: 0
+});
+
+const repaymentMaxAmount = computed(() => Number(repaymentOrder.value?.unpaidAmount || 0));
+
+const repaymentRules = {
+  amount: [
+    { required: true, message: '还款金额不能为空', trigger: 'blur' },
+    {
+      validator: (_rule: any, value: number, callback: any) => {
+        if (!value || value <= 0) {
+          callback(new Error('还款金额必须大于0'));
+          return;
+        }
+        if (value > repaymentMaxAmount.value) {
+          callback(new Error('还款金额不能大于当前欠款'));
+          return;
+        }
+        callback();
+      },
+      trigger: 'blur'
+    }
+  ]
+};
 
 const initFormData: CustomerForm = {
   customerId: undefined,
@@ -311,11 +419,78 @@ const handleUpdate = async (row?: CustomerVO) => {
 const handleOrderInfo = async (row: CustomerVO) => {
   orderCustomer.value = row;
   customerOrders.value = [];
+  orderDateRange.value = [];
+  orderSummary.orderCount = 0;
+  orderSummary.totalAmount = 0;
+  orderQueryParams.pageNum = 1;
+  orderQueryParams.beginDate = undefined;
+  orderQueryParams.endDate = undefined;
   orderDialog.visible = true;
   orderDialog.title = `${row.name}的订单信息`;
+  await Promise.all([getOrderList(), getOrderSummary()]);
+}
+
+const syncOrderDateParams = () => {
+  orderQueryParams.beginDate = orderDateRange.value?.[0];
+  orderQueryParams.endDate = orderDateRange.value?.[1];
+}
+
+const handleOrderQuery = async () => {
+  syncOrderDateParams();
+  orderQueryParams.pageNum = 1;
+  await Promise.all([getOrderList(), getOrderSummary()]);
+}
+
+const resetOrderQuery = async () => {
+  orderDateRange.value = [];
+  orderQueryParams.beginDate = undefined;
+  orderQueryParams.endDate = undefined;
+  orderQueryParams.pageNum = 1;
+  await Promise.all([getOrderList(), getOrderSummary()]);
+}
+
+const getOrderList = async () => {
+  if (!orderCustomer.value) {
+    return;
+  }
   orderLoading.value = true;
-  const res = await getCustomerOrders(row.customerId).finally(() => orderLoading.value = false);
-  customerOrders.value = res.data || [];
+  const res = await getCustomerOrders(orderCustomer.value.customerId, orderQueryParams).finally(() => orderLoading.value = false);
+  customerOrders.value = res.rows || [];
+  orderTotal.value = res.total || 0;
+}
+
+const getOrderSummary = async () => {
+  if (!orderCustomer.value) {
+    return;
+  }
+  const res = await getCustomerOrderSummary(orderCustomer.value.customerId, {
+    beginDate: orderQueryParams.beginDate,
+    endDate: orderQueryParams.endDate
+  });
+  orderSummary.orderCount = res.data?.orderCount || 0;
+  orderSummary.totalAmount = res.data?.totalAmount || 0;
+}
+
+const handleRepayment = (order: CustomerOrderVO) => {
+  repaymentOrder.value = order;
+  repaymentForm.amount = Number(order.unpaidAmount || 0);
+  repaymentDialog.title = `${order.deliveryDate} 订单还款`;
+  repaymentDialog.visible = true;
+}
+
+const submitRepayment = () => {
+  repaymentFormRef.value?.validate(async (valid: boolean) => {
+    if (!valid || !repaymentOrder.value?.orderId) {
+      return;
+    }
+    repaymentLoading.value = true;
+    await repayCustomerOrder(repaymentOrder.value.orderId, {
+      amount: Number(repaymentForm.amount || 0)
+    }).finally(() => repaymentLoading.value = false);
+    proxy?.$modal.msgSuccess('还款成功');
+    repaymentDialog.visible = false;
+    await Promise.all([getOrderList(), getOrderSummary(), getList()]);
+  });
 }
 
 const formatAmount = (value?: number) => {

@@ -88,6 +88,13 @@ export const constantRoutes: RouteRecordRaw[] = [
         meta: { title: '个人中心', icon: 'user' }
       }
     ]
+  },
+  {
+    path: '/order/delivery-print/:deliveryId',
+    component: () => import('@/views/system/deliveryOrder/print.vue'),
+    name: 'DeliveryOrderPrint',
+    hidden: true,
+    meta: { title: '销售单打印', noCache: true }
   }
 ];
 

@@ -25,6 +25,8 @@ export interface CustomerOrderVO {
   customerName?: string;
   customerPhone?: string;
   totalAmount?: number;
+  receivedAmount?: number;
+  unpaidAmount?: number;
   remark?: string;
   items: DeliveryOrderItemVO[];
 }
@@ -54,4 +56,13 @@ export interface DeliveryOrderQuery extends PageQuery {
   routeId?: string | number;
   status?: string;
   params?: any;
+}
+
+export interface DeliveryArchiveReceipt {
+  orderId: string | number;
+  receivedAmount: number;
+}
+
+export interface DeliveryArchiveForm {
+  receipts: DeliveryArchiveReceipt[];
 }

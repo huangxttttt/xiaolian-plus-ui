@@ -66,6 +66,37 @@ export interface CustomerVO {
 
 }
 
+export interface CustomerOrderSummaryVO {
+  /**
+   * 订单数量
+   */
+  orderCount: number;
+
+  /**
+   * 总消费额
+   */
+  totalAmount: number;
+}
+
+export interface CustomerOrderQuery extends PageQuery {
+  /**
+   * 配送开始日期
+   */
+  beginDate?: string;
+
+  /**
+   * 配送结束日期
+   */
+  endDate?: string;
+}
+
+export interface CustomerRepaymentForm {
+  /**
+   * 还款金额
+   */
+  amount: number;
+}
+
 export interface CustomerForm extends BaseEntity {
   /**
    * 客户ID

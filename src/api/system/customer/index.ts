@@ -1,6 +1,6 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { CustomerVO, CustomerForm, CustomerQuery } from '@/api/system/customer/types';
+import { CustomerVO, CustomerForm, CustomerQuery, CustomerOrderSummaryVO, CustomerOrderQuery, CustomerRepaymentForm } from '@/api/system/customer/types';
 import { CustomerOrderVO } from '@/api/system/deliveryOrder/types';
 
 /**
@@ -32,10 +32,36 @@ export const getCustomer = (customerId: string | number): AxiosPromise<CustomerV
  * 查询客户订单记录
  * @param customerId
  */
-export const getCustomerOrders = (customerId: string | number): AxiosPromise<CustomerOrderVO[]> => {
+export const getCustomerOrders = (customerId: string | number, query?: CustomerOrderQuery): AxiosPromise<CustomerOrderVO[]> => {
   return request({
     url: '/system/customer/' + customerId + '/orders',
-    method: 'get'
+    method: 'get',
+    params: query
+  });
+};
+
+/**
+ * 查询客户订单汇总
+ * @param customerId
+ */
+export const getCustomerOrderSummary = (customerId: string | number, query?: Pick<CustomerOrderQuery, 'beginDate' | 'endDate'>): AxiosPromise<CustomerOrderSummaryVO> => {
+  return request({
+    url: '/system/customer/' + customerId + '/orders/summary',
+    method: 'get',
+    params: query
+  });
+};
+
+/**
+ * 客户订单还款
+ * @param orderId
+ * @param data
+ */
+export const repayCustomerOrder = (orderId: string | number, data: CustomerRepaymentForm) => {
+  return request({
+    url: '/system/customer/orders/' + orderId + '/repay',
+    method: 'put',
+    data
   });
 };
 
