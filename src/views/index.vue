@@ -71,10 +71,24 @@
         <h2>经营排行</h2>
         <p>{{ rankPeriodText }}已归档配货数据</p>
       </div>
-      <el-radio-group v-model="rankPeriod" size="small" @change="loadSummary">
-        <el-radio-button label="month">本月排行</el-radio-button>
-        <el-radio-button label="year">今年排行</el-radio-button>
-      </el-radio-group>
+      <div class="rank-actions">
+        <el-date-picker
+          v-if="rankPeriod === 'month'"
+          v-model="rankMonth"
+          type="month"
+          value-format="YYYY-MM"
+          format="YYYY年MM月"
+          placeholder="选择月份"
+          :clearable="false"
+          size="small"
+          style="width: 138px"
+          @change="loadSummary"
+        />
+        <el-radio-group v-model="rankPeriod" size="small" @change="loadSummary">
+          <el-radio-button label="month">本月排行</el-radio-button>
+          <el-radio-button label="year">今年排行</el-radio-button>
+        </el-radio-group>
+      </div>
     </section>
 
     <section class="rank-grid" v-loading="rankLoading">
@@ -421,6 +435,7 @@ const summary = reactive<DashboardSummary>({
 });
 
 const rankPeriod = ref<DashboardRankPeriod>('month');
+const rankMonth = ref('');
 const rankLoading = ref(false);
 const todayOrderLoading = ref(false);
 const todayOrderDate = ref('');
@@ -446,7 +461,12 @@ const archiveData = ref<DeliveryOrderVO>();
 const archiveReceipts = ref<ArchiveReceiptRow[]>([]);
 const archiveLoading = ref(false);
 
-const rankPeriodText = computed(() => (rankPeriod.value === 'year' ? '今年' : '本月'));
+const rankPeriodText = computed(() => {
+  if (rankPeriod.value === 'year') {
+    return '今年';
+  }
+  return rankMonth.value ? `${rankMonth.value.replace('-', '年')}月` : '本月';
+});
 const profitOverviewItems = computed(() => [
   { label: '今日盈利', data: summary.todayProfit },
   { label: '本月盈利', data: summary.monthProfit },
@@ -502,6 +522,8 @@ const getCurrentDate = () => {
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+
+const getCurrentMonth = () => getCurrentDate().slice(0, 7);
 
 const openTodayOrders = async () => {
   todayOrderDialog.visible = true;
@@ -824,9 +846,12 @@ const disposeRankCharts = () => {
 };
 
 const loadSummary = async () => {
+  if (rankPeriod.value === 'month' && !rankMonth.value) {
+    rankMonth.value = getCurrentMonth();
+  }
   rankLoading.value = true;
   try {
-    const res = await getDashboardSummary(rankPeriod.value);
+    const res = await getDashboardSummary(rankPeriod.value, rankPeriod.value === 'month' ? rankMonth.value : undefined);
     Object.assign(summary, res.data);
     await nextTick();
     renderSparklineCharts();
@@ -837,6 +862,7 @@ const loadSummary = async () => {
 };
 
 onMounted(() => {
+  rankMonth.value = getCurrentMonth();
   window.addEventListener('resize', resizeRankCharts);
   loadSummary();
 });
@@ -1107,6 +1133,13 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
+.rank-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .rank-panel {
   min-height: 420px;
   padding: 18px 22px 20px;
@@ -1355,6 +1388,11 @@ onUnmounted(() => {
   .rank-toolbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .rank-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   .metric-panel {

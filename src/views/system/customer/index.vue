@@ -60,7 +60,12 @@
         <el-table-column label="客户位置" align="center" prop="address" />
         <el-table-column label="地图定位" align="center" prop="mapLocation" />
         <el-table-column label="常用商品" align="center" prop="commonProducts" />
-        <el-table-column label="门面照片" align="center" prop="photo" />
+        <el-table-column label="门面照片" align="center" prop="photo" width="120">
+          <template #default="scope">
+            <ImagePreview v-if="getPhotoUrl(scope.row.photo)" :width="70" :height="50" :src="getPhotoUrl(scope.row.photo)" />
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="备注" align="center" prop="remark" />
         <el-table-column label="操作" align="center" fixed="right"  class-name="small-padding fixed-width">
           <template #default="scope">
@@ -112,7 +117,7 @@
             <el-input v-model="form.commonProducts" type="textarea" placeholder="请输入内容" />
         </el-form-item>
         <el-form-item label="门面照片" prop="photo">
-            <el-input v-model="form.photo" type="textarea" placeholder="请输入内容" />
+          <image-upload v-model="form.photo" :limit="1" :file-size="8" :is-show-tip="false" />
         </el-form-item>
         <el-form-item label="备注" prop="remark">
             <el-input v-model="form.remark" type="textarea" placeholder="请输入内容" />
@@ -235,8 +240,12 @@ import { CustomerVO, CustomerQuery, CustomerForm, CustomerOrderSummaryVO, Custom
 import { CustomerOrderVO } from '@/api/system/deliveryOrder/types';
 import { listRouteOptions } from '@/api/system/route';
 import { RouteVO } from '@/api/system/route/types';
+import { listByIds } from '@/api/system/oss';
+import ImagePreview from '@/components/ImagePreview/index.vue';
+import { useUserStore } from '@/store/modules/user';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
+const userStore = useUserStore();
 
 const customerList = ref<CustomerVO[]>([]);
 const routeOptions = ref<RouteVO[]>([]);
@@ -254,6 +263,7 @@ const orderTotal = ref(0);
 const orderDateRange = ref<string[]>([]);
 const repaymentOrder = ref<CustomerOrderVO>();
 const repaymentLoading = ref(false);
+const photoUrlMap = reactive<Record<string, string>>({});
 const orderSummary = reactive<CustomerOrderSummaryVO>({
   orderCount: 0,
   totalAmount: 0
@@ -262,6 +272,7 @@ const orderSummary = reactive<CustomerOrderSummaryVO>({
 const queryFormRef = ref<ElFormInstance>();
 const customerFormRef = ref<ElFormInstance>();
 const repaymentFormRef = ref<ElFormInstance>();
+const canQueryOss = computed(() => userStore.permissions.includes('*:*:*') || userStore.permissions.includes('system:oss:query'));
 
 const dialog = reactive<DialogOption>({
   visible: false,
@@ -357,10 +368,54 @@ const { queryParams, form, rules } = toRefs(data);
 /** 查询客户档案列表 */
 const getList = async () => {
   loading.value = true;
-  const res = await listCustomer(queryParams.value);
-  customerList.value = res.rows;
-  total.value = res.total;
-  loading.value = false;
+  try {
+    const res = await listCustomer(queryParams.value);
+    customerList.value = res.rows;
+    total.value = res.total;
+    await loadCustomerPhotoUrls(res.rows || []);
+  } finally {
+    loading.value = false;
+  }
+}
+
+const loadCustomerPhotoUrls = async (rows: CustomerVO[]) => {
+  if (!canQueryOss.value) {
+    return;
+  }
+
+  const ids = rows
+    .map((item) => item.photo)
+    .filter((photo): photo is string => !!photo && !/^https?:\/\//.test(photo))
+    .flatMap((photo) => photo.split(','))
+    .map((id) => id.trim())
+    .filter((id) => id && !photoUrlMap[id]);
+
+  const uniqueIds = Array.from(new Set(ids));
+  if (!uniqueIds.length) {
+    return;
+  }
+
+  try {
+    const res = await listByIds(uniqueIds.join(','));
+    (res.data || []).forEach((item) => {
+      if (item.ossId && item.url) {
+        photoUrlMap[String(item.ossId)] = item.url;
+      }
+    });
+  } catch {
+    // 图片预览失败不能影响客户列表展示。
+  }
+}
+
+const getPhotoUrl = (photo?: string) => {
+  if (!photo) {
+    return '';
+  }
+  if (/^https?:\/\//.test(photo)) {
+    return photo;
+  }
+  const firstId = photo.split(',')[0]?.trim();
+  return firstId ? photoUrlMap[firstId] || '' : '';
 }
 
 const getRouteOptions = async () => {

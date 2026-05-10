@@ -64,7 +64,7 @@
         <table class="sale-table">
           <thead>
             <tr>
-              <th class="code">编号</th>
+              <th class="code">序号</th>
               <th>货品名称</th>
               <th class="spec">规格</th>
               <th class="unit">单位</th>
@@ -76,7 +76,7 @@
           </thead>
           <tbody>
             <tr v-for="item in normalizedItems(page)" :key="item.key">
-              <td class="center">{{ item.source ? productCode(item.source, item.absoluteIndex) : '' }}</td>
+              <td class="center">{{ item.source ? rowNumber(item.absoluteIndex) : '' }}</td>
               <td>{{ item.source?.productName || '' }}</td>
               <td class="center">{{ item.source?.specification || '' }}</td>
               <td class="center">{{ item.source ? unitName(item.source) : '' }}</td>
@@ -89,8 +89,8 @@
               <td>金额合计</td>
               <td>（大写）</td>
               <td colspan="2">{{ amountInChinese(calcOrderTotal(page.order)) }}</td>
-              <td class="center">{{ formatNumber(totalQuantity(page.order)) }}</td>
-              <td>（小写）</td>
+              <td class="center"></td>
+              <td class="center total-small-label">（小写）</td>
               <td class="center">{{ trimAmount(calcOrderTotal(page.order)) }}</td>
               <td></td>
             </tr>
@@ -101,10 +101,9 @@
           </tbody>
         </table>
 
-        <div v-if="page.isLast" class="invoice-footer">
-          <div class="signature-row">
-            <span>收货人：</span>
-          </div>
+        <div v-if="page.isLast" class="invoice-summary">
+          <span></span>
+          <span class="receiver">收货人：</span>
         </div>
         <div v-else class="invoice-footer continuation-footer">
           <p>续页</p>
@@ -161,7 +160,7 @@ const loading = ref(false);
 const deliveryData = ref<DeliveryOrderVO>();
 const printScope = ref<'all' | 'selected'>('all');
 const selectedOrderIds = ref<string[]>([]);
-const detailRowsPerPage = 8;
+const detailRowsPerPage = 10;
 
 const orderKey = (order: CustomerOrderVO) => String(order.orderId || order.customerId);
 
@@ -213,9 +212,8 @@ const formatNumber = (value?: number) => {
   });
 };
 
-const productCode = (item: DeliveryOrderItemVO, index: number) => {
-  const value = item.productId || item.itemId || index + 1;
-  return String(value).padStart(4, '0').slice(-4);
+const rowNumber = (index: number) => {
+  return String(index + 1);
 };
 
 const unitName = (item: DeliveryOrderItemVO) => {
@@ -243,10 +241,6 @@ const normalizedItems = (page: PrintablePage): PrintableItem[] => {
       absoluteIndex: page.startIndex + items.length + index
     }))
   );
-};
-
-const totalQuantity = (order: CustomerOrderVO) => {
-  return order.items?.reduce((sum, item) => sum + Number(item.quantity || 0), 0) || 0;
 };
 
 const amountInChinese = (value?: number) => {
@@ -319,7 +313,7 @@ const renderPrintRows = (page: PrintablePage) => {
       const source = item.source;
       return `
         <tr>
-          <td class="center">${source ? escapeHtml(productCode(source, item.absoluteIndex)) : ''}</td>
+          <td class="center">${source ? escapeHtml(rowNumber(item.absoluteIndex)) : ''}</td>
           <td>${source ? escapeHtml(source.productName) : ''}</td>
           <td class="center">${source ? escapeHtml(source.specification) : ''}</td>
           <td class="center">${source ? escapeHtml(unitName(source)) : ''}</td>
@@ -338,8 +332,8 @@ const renderPrintRows = (page: PrintablePage) => {
         <td>金额合计</td>
         <td>（大写）</td>
         <td colspan="2">${escapeHtml(amountInChinese(calcOrderTotal(page.order)))}</td>
-        <td class="center">${escapeHtml(formatNumber(totalQuantity(page.order)))}</td>
-        <td>（小写）</td>
+        <td class="center"></td>
+        <td class="center total-small-label">（小写）</td>
         <td class="center">${escapeHtml(trimAmount(calcOrderTotal(page.order)))}</td>
         <td></td>
       </tr>
@@ -356,8 +350,9 @@ const renderPrintRows = (page: PrintablePage) => {
 
 const renderPrintPage = (page: PrintablePage) => {
   const remark = page.isLast && (page.order.remark || deliveryData.value?.remark) ? `<p class="remark">备注：${escapeHtml(page.order.remark || deliveryData.value?.remark)}</p>` : '';
+  const summary = page.isLast ? '<div class="invoice-summary"><span></span><span class="receiver">收货人：</span></div>' : '';
   const footer = page.isLast
-    ? '<div class="invoice-footer"><div class="signature-row"><span>收货人：</span></div></div>'
+    ? ''
     : '<div class="invoice-footer continuation-footer"><p>续页</p></div>';
 
   return `
@@ -385,7 +380,7 @@ const renderPrintPage = (page: PrintablePage) => {
       <table class="sale-table">
         <thead>
           <tr>
-            <th class="code">编号</th>
+            <th class="code">序号</th>
             <th>货品名称</th>
             <th class="spec">规格</th>
             <th class="unit">单位</th>
@@ -397,6 +392,7 @@ const renderPrintPage = (page: PrintablePage) => {
         </thead>
         <tbody>${renderPrintRows(page)}</tbody>
       </table>
+      ${summary}
       ${footer}
       ${remark}
     </section>
@@ -528,6 +524,29 @@ const lodopPrintStyle = `
   .total-row td {
     height: 6.2mm;
     font-weight: 700;
+  }
+
+  .total-small-label {
+    padding-left: 1px !important;
+    padding-right: 1px !important;
+    white-space: nowrap;
+  }
+
+  .invoice-summary {
+    margin-top: 2px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e3f7a;
+  }
+
+  .invoice-summary .receiver {
+    display: block;
+    width: 68mm;
+    min-height: 7mm;
+    text-align: left;
   }
 
   .invoice-footer {
@@ -673,7 +692,7 @@ const renderExcelRows = (page: PrintablePage) => {
       }
       return `
         <Row ss:Height="24">
-          ${excelCell(productCode(source, item.absoluteIndex), 'centerGrid')}
+          ${excelCell(rowNumber(item.absoluteIndex), 'centerGrid')}
           ${excelCell(source.productName, 'grid')}
           ${excelCell(source.specification, 'centerGrid')}
           ${excelCell(unitName(source), 'centerGrid')}
@@ -692,10 +711,14 @@ const renderExcelRows = (page: PrintablePage) => {
         ${excelCell('金额合计', 'totalGrid')}
         ${excelCell('（大写）', 'totalGrid')}
         ${excelCell(amountInChinese(calcOrderTotal(page.order)), 'totalGrid', 1)}
-        ${excelCell(Number(totalQuantity(page.order)), 'totalNumberGrid')}
+        ${excelCell('', 'totalGrid')}
         ${excelCell('（小写）', 'totalGrid')}
         ${excelCell(Number(calcOrderTotal(page.order)), 'totalNumberGrid')}
         ${excelBlankCell('totalGrid')}
+      </Row>
+      <Row ss:Height="22">
+        ${excelCell('', 'plain', 4)}
+        ${excelCell('收货人：', 'headCenter', 2)}
       </Row>
     `
     : `
@@ -740,7 +763,7 @@ const renderExcelWorksheet = (page: PrintablePage, index: number) => {
         </Row>
         <Row ss:Height="6">${Array.from({ length: 8 }, () => excelBlankCell('plain')).join('')}</Row>
         <Row ss:Height="24">
-          ${excelCell('编号', 'tableHead')}
+          ${excelCell('序号', 'tableHead')}
           ${excelCell('货品名称', 'tableHead')}
           ${excelCell('规格', 'tableHead')}
           ${excelCell('单位', 'tableHead')}
@@ -750,15 +773,6 @@ const renderExcelWorksheet = (page: PrintablePage, index: number) => {
           ${excelCell('备注', 'tableHead')}
         </Row>
         ${renderExcelRows(page)}
-        <Row ss:Height="22">
-          ${excelBlankCell('plain')}
-          ${excelBlankCell('plain')}
-          ${excelBlankCell('plain')}
-          ${excelBlankCell('plain')}
-          ${excelBlankCell('plain')}
-          ${excelCell('收货人：', 'headCenter', 2)}
-          ${excelBlankCell('plain')}
-        </Row>
         <Row ss:Height="22">
           ${excelCell(remark ? `备注：${remark}` : '', 'plain', 7)}
         </Row>
@@ -1051,6 +1065,29 @@ const printPage = () => {
       font-weight: 700;
     }
 
+    .total-small-label {
+      padding-left: 1px !important;
+      padding-right: 1px !important;
+      white-space: nowrap;
+    }
+
+    .invoice-summary {
+      margin-top: 2px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 700;
+      color: #1e3f7a;
+    }
+
+    .invoice-summary .receiver {
+      display: block;
+      width: 68mm;
+      min-height: 7mm;
+      text-align: left;
+    }
+
     .invoice-footer {
       font-size: 13px;
     }
@@ -1222,16 +1259,16 @@ onMounted(() => {
 
 .sale-table th,
 .sale-table td {
-  height: 7.2mm;
-  padding: 2px 6px;
+  height: 6.3mm;
+  padding: 1px 4px;
   border: 1px solid #4f66a3;
-  line-height: 1.15;
+  line-height: 1.05;
   text-align: left;
   vertical-align: middle;
 }
 
 .sale-table th {
-  height: 7mm;
+  height: 5.8mm;
   font-weight: 700;
   text-align: center;
 }
@@ -1269,8 +1306,31 @@ onMounted(() => {
 }
 
 .total-row td {
-  height: 7.2mm;
+  height: 6.2mm;
   font-weight: 700;
+}
+
+.total-small-label {
+  padding-left: 1px !important;
+  padding-right: 1px !important;
+  white-space: nowrap;
+}
+
+.invoice-summary {
+  margin-top: 4px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e3f7a;
+}
+
+.invoice-summary .receiver {
+  display: block;
+  width: 68mm;
+  min-height: 7mm;
+  text-align: left;
 }
 
 .invoice-footer {
@@ -1421,6 +1481,20 @@ onMounted(() => {
 
   .total-row td {
     height: 6.2mm;
+  }
+
+  .total-small-label {
+    padding-left: 1px !important;
+    padding-right: 1px !important;
+    white-space: nowrap;
+  }
+
+  .invoice-summary {
+    margin-top: 2px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    font-size: 13px;
   }
 
   .invoice-footer {
