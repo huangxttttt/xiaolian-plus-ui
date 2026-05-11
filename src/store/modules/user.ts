@@ -2,9 +2,11 @@ import { to } from 'await-to-js';
 import { getToken, removeToken, setToken } from '@/utils/auth';
 import { login as loginApi, logout as logoutApi, getInfo as getUserInfo } from '@/api/login';
 import { LoginData } from '@/api/types';
+import { getCurrentTenant } from '@/api/system/tenant';
 import defAva from '@/assets/images/profile.jpg';
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import { useSettingsStore } from './settings';
 
 export const useUserStore = defineStore('user', () => {
   const token = ref(getToken());
@@ -12,6 +14,7 @@ export const useUserStore = defineStore('user', () => {
   const nickname = ref('');
   const userId = ref<string | number>('');
   const tenantId = ref<string>('');
+  const tenantName = ref<string>('');
   const avatar = ref('');
   const roles = ref<Array<string>>([]); // 用户角色编码集合 → 判断路由权限
   const permissions = ref<Array<string>>([]); // 用户权限编码集合 → 判断按钮权限
@@ -52,6 +55,14 @@ export const useUserStore = defineStore('user', () => {
       avatar.value = profile;
       userId.value = user.userId;
       tenantId.value = user.tenantId;
+      const [tenantErr, tenantRes] = await to(getCurrentTenant());
+      if (!tenantErr && tenantRes?.data) {
+        tenantName.value = tenantRes.data.companyName || '';
+        useSettingsStore().setAppTitle(tenantName.value);
+      } else {
+        tenantName.value = '';
+        useSettingsStore().setAppTitle();
+      }
       return Promise.resolve();
     }
     return Promise.reject(err);
@@ -63,6 +74,8 @@ export const useUserStore = defineStore('user', () => {
     token.value = '';
     roles.value = [];
     permissions.value = [];
+    tenantName.value = '';
+    useSettingsStore().setAppTitle();
     removeToken();
   };
 
@@ -73,6 +86,7 @@ export const useUserStore = defineStore('user', () => {
   return {
     userId,
     tenantId,
+    tenantName,
     token,
     nickname,
     avatar,

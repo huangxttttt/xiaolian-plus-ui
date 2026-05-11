@@ -16,6 +16,7 @@ export const useSettingsStore = defineStore('setting', () => {
     theme: defaultSettings.theme
   });
   const title = ref<string>(defaultSettings.title);
+  const appTitle = ref<string>(defaultSettings.title);
   const theme = ref<string>(storageSetting.value.theme);
   const sideTheme = ref<string>(storageSetting.value.sideTheme);
   const showSettings = ref<boolean>(defaultSettings.showSettings);
@@ -32,8 +33,13 @@ export const useSettingsStore = defineStore('setting', () => {
     title.value = value;
     useDynamicTitle();
   };
+  const setAppTitle = (value?: string) => {
+    appTitle.value = value || defaultSettings.title;
+    useDynamicTitle();
+  };
   return {
     title,
+    appTitle,
     theme,
     sideTheme,
     showSettings,
@@ -45,6 +51,7 @@ export const useSettingsStore = defineStore('setting', () => {
     dynamicTitle,
     animationEnable,
     dark,
-    setTitle
+    setTitle,
+    setAppTitle
   };
 });
