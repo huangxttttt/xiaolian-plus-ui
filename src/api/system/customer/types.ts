@@ -40,19 +40,29 @@ export interface CustomerVO {
   debt: number;
 
   /**
-   * 客户位置
-   */
-  address: string;
-
-  /**
    * 地图定位
    */
   mapLocation: string;
 
   /**
-   * 常用商品
+   * 地图经度
    */
-  commonProducts: string;
+  longitude?: number;
+
+  /**
+   * 地图纬度
+   */
+  latitude?: number;
+
+  /**
+   * 地图解析地址
+   */
+  mapAddress?: string;
+
+  /**
+   * 地图服务商
+   */
+  mapProvider?: string;
 
   /**
    * 门面照片
@@ -63,7 +73,6 @@ export interface CustomerVO {
    * 备注
    */
   remark: string;
-
 }
 
 export interface CustomerOrderSummaryVO {
@@ -76,6 +85,43 @@ export interface CustomerOrderSummaryVO {
    * 总消费额
    */
   totalAmount: number;
+}
+
+export interface CustomerTopProductVO {
+  /**
+   * 商品ID
+   */
+  productId: string | number;
+
+  /**
+   * 商品名称
+   */
+  productName: string;
+
+  /**
+   * 规格
+   */
+  specification?: string;
+
+  /**
+   * 提供商
+   */
+  supplier?: string;
+
+  /**
+   * 累计数量
+   */
+  totalQuantity: number;
+
+  /**
+   * 累计金额
+   */
+  totalAmount: number;
+
+  /**
+   * 下单次数
+   */
+  orderCount: number;
 }
 
 export interface CustomerOrderQuery extends PageQuery {
@@ -134,19 +180,29 @@ export interface CustomerForm extends BaseEntity {
   debt?: number;
 
   /**
-   * 客户位置
-   */
-  address?: string;
-
-  /**
    * 地图定位
    */
   mapLocation?: string;
 
   /**
-   * 常用商品
+   * 地图经度
    */
-  commonProducts?: string;
+  longitude?: number;
+
+  /**
+   * 地图纬度
+   */
+  latitude?: number;
+
+  /**
+   * 地图解析地址
+   */
+  mapAddress?: string;
+
+  /**
+   * 地图服务商
+   */
+  mapProvider?: string;
 
   /**
    * 门面照片
@@ -157,11 +213,9 @@ export interface CustomerForm extends BaseEntity {
    * 备注
    */
   remark?: string;
-
 }
 
 export interface CustomerQuery extends PageQuery {
-
   /**
    * 客户名称
    */

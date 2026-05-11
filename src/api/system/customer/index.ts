@@ -1,6 +1,14 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { CustomerVO, CustomerForm, CustomerQuery, CustomerOrderSummaryVO, CustomerOrderQuery, CustomerRepaymentForm } from '@/api/system/customer/types';
+import {
+  CustomerVO,
+  CustomerForm,
+  CustomerQuery,
+  CustomerOrderSummaryVO,
+  CustomerOrderQuery,
+  CustomerRepaymentForm,
+  CustomerTopProductVO
+} from '@/api/system/customer/types';
 import { CustomerOrderVO } from '@/api/system/deliveryOrder/types';
 
 /**
@@ -44,11 +52,25 @@ export const getCustomerOrders = (customerId: string | number, query?: CustomerO
  * 查询客户订单汇总
  * @param customerId
  */
-export const getCustomerOrderSummary = (customerId: string | number, query?: Pick<CustomerOrderQuery, 'beginDate' | 'endDate'>): AxiosPromise<CustomerOrderSummaryVO> => {
+export const getCustomerOrderSummary = (
+  customerId: string | number,
+  query?: Pick<CustomerOrderQuery, 'beginDate' | 'endDate'>
+): AxiosPromise<CustomerOrderSummaryVO> => {
   return request({
     url: '/system/customer/' + customerId + '/orders/summary',
     method: 'get',
     params: query
+  });
+};
+
+/**
+ * 查询客户常购商品排行
+ * @param customerId
+ */
+export const getCustomerTopProducts = (customerId: string | number): AxiosPromise<CustomerTopProductVO[]> => {
+  return request({
+    url: '/system/customer/' + customerId + '/top-products',
+    method: 'get'
   });
 };
 
