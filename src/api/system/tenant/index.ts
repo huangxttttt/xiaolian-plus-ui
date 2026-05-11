@@ -19,6 +19,14 @@ export function getTenant(id: string | number): AxiosPromise<TenantVO> {
   });
 }
 
+// 查询当前租户
+export function getCurrentTenant(): AxiosPromise<TenantVO> {
+  return request({
+    url: '/system/tenant/current',
+    method: 'get'
+  });
+}
+
 // 新增租户
 export function addTenant(data: TenantForm) {
   return request({

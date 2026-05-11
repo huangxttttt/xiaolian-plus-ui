@@ -51,9 +51,9 @@
             <p>联系电话：{{ page.order.customerPhone || '' }}</p>
           </div>
           <div class="invoice-title">
-            <h1>小莲粮油销售单</h1>
+            <h1>{{ printTitle }}</h1>
             <p>录单日期：{{ deliveryData?.deliveryDate || '-' }}</p>
-            <p>电话：13599653816&nbsp;&nbsp;13605001715</p>
+            <p>电话：{{ printPhone }}</p>
           </div>
           <div class="invoice-meta">
             <p>第 {{ page.pageNo }}/{{ page.pageTotal }} 页</p>
@@ -114,6 +114,7 @@
 <script setup name="DeliveryOrderPrint" lang="ts">
 import { getDeliveryOrder } from '@/api/system/deliveryOrder';
 import { CustomerOrderVO, DeliveryOrderItemVO, DeliveryOrderVO } from '@/api/system/deliveryOrder/types';
+import { getCurrentTenant } from '@/api/system/tenant';
 import { saveAs } from 'file-saver';
 
 type LodopInstance = {
@@ -157,6 +158,8 @@ const deliveryData = ref<DeliveryOrderVO>();
 const printScope = ref<'all' | 'selected'>('all');
 const selectedOrderIds = ref<string[]>([]);
 const detailRowsPerPage = 10;
+const printTitle = ref('小莲粮油销售单');
+const printPhone = ref('13599653816  13605001715');
 
 const orderKey = (order: CustomerOrderVO) => String(order.orderId || order.customerId);
 
@@ -303,6 +306,24 @@ const escapeHtml = (value?: string | number) => {
   return String(value ?? '').replace(/[&<>"']/g, (char) => map[char]);
 };
 
+const escapeXml = escapeHtml;
+
+const loadPrintTenant = async () => {
+  try {
+    const res = await getCurrentTenant();
+    const companyName = res.data?.companyName?.trim();
+    const contactPhone = res.data?.contactPhone?.trim();
+    if (companyName) {
+      printTitle.value = `${companyName}销售单`;
+    }
+    if (contactPhone) {
+      printPhone.value = contactPhone;
+    }
+  } catch {
+    // 租户资料读取失败时使用本地兜底打印抬头。
+  }
+};
+
 const renderPrintRows = (page: PrintablePage) => {
   const rows = normalizedItems(page)
     .map((item) => {
@@ -359,9 +380,9 @@ const renderPrintPage = (page: PrintablePage) => {
               <p>联系电话：${escapeHtml(page.order.customerPhone)}</p>
             </td>
             <td class="invoice-title">
-              <h1>小莲粮油销售单</h1>
+              <h1>${escapeHtml(printTitle.value)}</h1>
               <p>录单日期：${escapeHtml(deliveryData.value?.deliveryDate || '-')}</p>
-              <p>电话：13599653816&nbsp;&nbsp;13605001715</p>
+              <p>电话：${escapeHtml(printPhone.value)}</p>
             </td>
             <td class="invoice-meta">
               <p>第 ${page.pageNo}/${page.pageTotal} 页</p>
@@ -643,7 +664,7 @@ const professionalPrintPage = async () => {
     return;
   }
 
-  lodop.PRINT_INITA(0, 0, '241mm', '140mm', '小莲粮油销售单');
+  lodop.PRINT_INITA(0, 0, '241mm', '140mm', printTitle.value);
   lodop.SET_PRINT_PAGESIZE(1, 2410, 1400, '二联二等分241x140');
   lodop.SET_PRINT_MODE?.('PRINT_PAGE_PERCENT', 'Full-Width');
 
@@ -731,7 +752,7 @@ const renderExcelWorksheet = (page: PrintablePage, index: number) => {
         <Column ss:Width="76" />
         <Row ss:Height="28">
           ${excelCell(`客户名称：${page.order.customerName || '-'}`, 'headLeft', 1)}
-          ${excelCell('小莲粮油销售单', 'title', 2)}
+          ${excelCell(printTitle.value, 'title', 2)}
           ${excelCell(`第 ${page.pageNo}/${page.pageTotal} 页`, 'headRight', 1)}
         </Row>
         <Row ss:Height="22">
@@ -741,7 +762,7 @@ const renderExcelWorksheet = (page: PrintablePage, index: number) => {
         </Row>
         <Row ss:Height="22">
           ${excelBlankCell('plain')}
-          ${excelCell('电话：13599653816  13605001715', 'headCenter', 4)}
+          ${excelCell(`电话：${printPhone.value}`, 'headCenter', 4)}
           ${excelBlankCell('plain')}
         </Row>
         <Row ss:Height="6">${Array.from({ length: 7 }, () => excelBlankCell('plain')).join('')}</Row>
@@ -793,7 +814,7 @@ const exportExcelPrint = () => {
       xmlns:x="urn:schemas-microsoft-com:office:excel"
       xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
       <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
-        <Author>小莲粮油</Author>
+        <Author>${escapeXml(printTitle.value)}</Author>
       </DocumentProperties>
       <ExcelWorkbook xmlns="urn:schemas-microsoft-com:office:excel">
         <WindowHeight>9000</WindowHeight>
@@ -857,7 +878,7 @@ const exportExcelPrint = () => {
     </Workbook>`;
 
   const blob = new Blob(['\ufeff', workbook], { type: 'application/vnd.ms-excel;charset=utf-8' });
-  saveAs(blob, `小莲粮油销售单_${deliveryData.value?.deliveryDate || new Date().getTime()}.xls`);
+  saveAs(blob, `${printTitle.value}_${deliveryData.value?.deliveryDate || new Date().getTime()}.xls`);
 };
 
 const loadData = async () => {
@@ -1128,6 +1149,7 @@ const closePage = () => {
 };
 
 onMounted(() => {
+  loadPrintTenant();
   loadData();
 });
 </script>
