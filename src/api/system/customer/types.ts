@@ -124,6 +124,33 @@ export interface CustomerTopProductVO {
   orderCount: number;
 }
 
+export interface RouteCustomerOrderStatsVO {
+  /**
+   * 客户ID
+   */
+  customerId: string | number;
+
+  /**
+   * 客户名称
+   */
+  customerName: string;
+
+  /**
+   * 当前客户在该配送地的订单数
+   */
+  orderCount: number;
+
+  /**
+   * 该配送地总订单数
+   */
+  routeOrderCount: number;
+
+  /**
+   * 订单占比百分数
+   */
+  percentage: number;
+}
+
 export interface CustomerOrderQuery extends PageQuery {
   /**
    * 配送开始日期

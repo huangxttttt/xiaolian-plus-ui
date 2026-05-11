@@ -1,5 +1,6 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
+import { getToken } from '@/utils/auth';
 import {
   CustomerVO,
   CustomerForm,
@@ -7,7 +8,8 @@ import {
   CustomerOrderSummaryVO,
   CustomerOrderQuery,
   CustomerRepaymentForm,
-  CustomerTopProductVO
+  CustomerTopProductVO,
+  RouteCustomerOrderStatsVO
 } from '@/api/system/customer/types';
 import { CustomerOrderVO } from '@/api/system/deliveryOrder/types';
 
@@ -72,6 +74,29 @@ export const getCustomerTopProducts = (customerId: string | number): AxiosPromis
     url: '/system/customer/' + customerId + '/top-products',
     method: 'get'
   });
+};
+
+/**
+ * 查询配送地客户订单占比
+ * @param routeId
+ */
+export const getRouteCustomerOrderStats = (routeId: string | number): AxiosPromise<RouteCustomerOrderStatsVO[]> => {
+  return fetch(`${import.meta.env.VITE_APP_BASE_API}/system/customer/route/${routeId}/order-stats`, {
+    method: 'GET',
+    headers: {
+      Authorization: 'Bearer ' + getToken(),
+      clientid: import.meta.env.VITE_APP_CLIENT_ID
+    }
+  }).then(async (response) => {
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const result = await response.json();
+    if (result.code !== 200) {
+      throw new Error(result.msg || '查询配送地客户订单占比失败');
+    }
+    return result;
+  }) as AxiosPromise<RouteCustomerOrderStatsVO[]>;
 };
 
 /**

@@ -4,7 +4,8 @@
       <div>
         <h2>销售单打印预览</h2>
         <p v-if="deliveryData">
-          {{ deliveryData.deliveryDate }} · {{ deliveryData.routeName }} · 当前打印 {{ printableOrders.length }} / {{ deliveryData.customerOrders?.length || 0 }} 户
+          {{ deliveryData.deliveryDate }} · {{ deliveryData.routeName }} · 当前打印 {{ printableOrders.length }} /
+          {{ deliveryData.customerOrders?.length || 0 }} 户
         </p>
       </div>
       <div class="toolbar-actions">
@@ -29,7 +30,9 @@
           />
         </el-select>
         <el-button icon="Refresh" @click="loadData">刷新</el-button>
-        <el-button type="primary" icon="Printer" @click="professionalPrintPage">{{ printScope === 'selected' ? '专业打印选中' : '专业打印全部' }}</el-button>
+        <el-button type="primary" icon="Printer" @click="professionalPrintPage">{{
+          printScope === 'selected' ? '专业打印选中' : '专业打印全部'
+        }}</el-button>
         <el-button @click="closePage">关闭</el-button>
       </div>
     </div>
@@ -39,15 +42,12 @@
       <el-empty v-else-if="!loading && !deliveryData?.customerOrders?.length" description="该配货单暂无客户订单" />
       <el-empty v-else-if="!loading && !printablePages.length" description="请选择要打印的客户" />
 
-      <section
-        v-for="(page, index) in printablePages"
-        :key="page.key"
-        class="sale-page"
-        :class="{ 'is-last': index === printablePages.length - 1 }"
-      >
+      <section v-for="(page, index) in printablePages" :key="page.key" class="sale-page" :class="{ 'is-last': index === printablePages.length - 1 }">
         <header class="invoice-header">
           <div class="customer-info">
-            <p>客户名称：<strong>{{ page.order.customerName || '-' }}</strong></p>
+            <p>
+              客户名称：<strong>{{ page.order.customerName || '-' }}</strong>
+            </p>
             <p>联系电话：{{ page.order.customerPhone || '' }}</p>
           </div>
           <div class="invoice-title">
@@ -71,7 +71,6 @@
               <th class="qty">数量</th>
               <th class="price">单价</th>
               <th class="amount">金额</th>
-              <th class="remark-col">备注</th>
             </tr>
           </thead>
           <tbody>
@@ -83,7 +82,6 @@
               <td class="center">{{ item.source ? formatNumber(item.source.quantity) : '' }}</td>
               <td class="center">{{ item.source ? trimAmount(item.source.salePrice) : '' }}</td>
               <td class="center">{{ item.source ? trimAmount(item.source.amount ?? calcItemAmount(item.source)) : '' }}</td>
-              <td>{{ item.source?.remark || '' }}</td>
             </tr>
             <tr v-if="page.isLast" class="total-row">
               <td>金额合计</td>
@@ -92,11 +90,9 @@
               <td class="center"></td>
               <td class="center total-small-label">（小写）</td>
               <td class="center">{{ trimAmount(calcOrderTotal(page.order)) }}</td>
-              <td></td>
             </tr>
             <tr v-else class="total-row">
               <td colspan="7">本客户销售单未完，转下页</td>
-              <td></td>
             </tr>
           </tbody>
         </table>
@@ -320,7 +316,6 @@ const renderPrintRows = (page: PrintablePage) => {
           <td class="center">${source ? escapeHtml(formatNumber(source.quantity)) : ''}</td>
           <td class="center">${source ? escapeHtml(trimAmount(source.salePrice)) : ''}</td>
           <td class="center">${source ? escapeHtml(trimAmount(source.amount ?? calcItemAmount(source))) : ''}</td>
-          <td>${source ? escapeHtml(source.remark) : ''}</td>
         </tr>
       `;
     })
@@ -335,13 +330,11 @@ const renderPrintRows = (page: PrintablePage) => {
         <td class="center"></td>
         <td class="center total-small-label">（小写）</td>
         <td class="center">${escapeHtml(trimAmount(calcOrderTotal(page.order)))}</td>
-        <td></td>
       </tr>
     `
     : `
       <tr class="total-row">
         <td colspan="7">本客户销售单未完，转下页</td>
-        <td></td>
       </tr>
     `;
 
@@ -349,11 +342,12 @@ const renderPrintRows = (page: PrintablePage) => {
 };
 
 const renderPrintPage = (page: PrintablePage) => {
-  const remark = page.isLast && (page.order.remark || deliveryData.value?.remark) ? `<p class="remark">备注：${escapeHtml(page.order.remark || deliveryData.value?.remark)}</p>` : '';
+  const remark =
+    page.isLast && (page.order.remark || deliveryData.value?.remark)
+      ? `<p class="remark">备注：${escapeHtml(page.order.remark || deliveryData.value?.remark)}</p>`
+      : '';
   const summary = page.isLast ? '<div class="invoice-summary"><span></span><span class="receiver">收货人：</span></div>' : '';
-  const footer = page.isLast
-    ? ''
-    : '<div class="invoice-footer continuation-footer"><p>续页</p></div>';
+  const footer = page.isLast ? '' : '<div class="invoice-footer continuation-footer"><p>续页</p></div>';
 
   return `
     <section class="sale-page">
@@ -387,7 +381,6 @@ const renderPrintPage = (page: PrintablePage) => {
             <th class="qty">数量</th>
             <th class="price">单价</th>
             <th class="amount">金额</th>
-            <th class="remark-col">备注</th>
           </tr>
         </thead>
         <tbody>${renderPrintRows(page)}</tbody>
@@ -511,10 +504,6 @@ const lodopPrintStyle = `
 
   .sale-table .amount {
     width: 18mm;
-  }
-
-  .sale-table .remark-col {
-    width: 25mm;
   }
 
   .center {
@@ -688,7 +677,7 @@ const renderExcelRows = (page: PrintablePage) => {
     .map((item) => {
       const source = item.source;
       if (!source) {
-        return `<Row ss:Height="24">${Array.from({ length: 8 }, () => excelBlankCell()).join('')}</Row>`;
+        return `<Row ss:Height="24">${Array.from({ length: 7 }, () => excelBlankCell()).join('')}</Row>`;
       }
       return `
         <Row ss:Height="24">
@@ -699,7 +688,6 @@ const renderExcelRows = (page: PrintablePage) => {
           ${excelCell(Number(source.quantity || 0), 'numberGrid')}
           ${excelCell(Number(source.salePrice || 0), 'numberGrid')}
           ${excelCell(Number(source.amount ?? calcItemAmount(source)), 'numberGrid')}
-          ${excelCell(source.remark, 'grid')}
         </Row>
       `;
     })
@@ -714,17 +702,15 @@ const renderExcelRows = (page: PrintablePage) => {
         ${excelCell('', 'totalGrid')}
         ${excelCell('（小写）', 'totalGrid')}
         ${excelCell(Number(calcOrderTotal(page.order)), 'totalNumberGrid')}
-        ${excelBlankCell('totalGrid')}
       </Row>
       <Row ss:Height="22">
         ${excelCell('', 'plain', 4)}
-        ${excelCell('收货人：', 'headCenter', 2)}
+        ${excelCell('收货人：', 'headCenter', 1)}
       </Row>
     `
     : `
       <Row ss:Height="26">
         ${excelCell('本客户销售单未完，转下页', 'totalGrid', 6)}
-        ${excelBlankCell('totalGrid')}
       </Row>
     `;
 
@@ -735,7 +721,7 @@ const renderExcelWorksheet = (page: PrintablePage, index: number) => {
   const remark = page.isLast && (page.order.remark || deliveryData.value?.remark) ? page.order.remark || deliveryData.value?.remark : '';
   return `
     <Worksheet ss:Name="${escapeHtml(excelSheetName(page, index))}">
-      <Table ss:ExpandedColumnCount="8" x:FullColumns="1" x:FullRows="1" ss:DefaultRowHeight="22">
+      <Table ss:ExpandedColumnCount="7" x:FullColumns="1" x:FullRows="1" ss:DefaultRowHeight="22">
         <Column ss:Width="46" />
         <Column ss:Width="155" />
         <Column ss:Width="110" />
@@ -743,25 +729,22 @@ const renderExcelWorksheet = (page: PrintablePage, index: number) => {
         <Column ss:Width="54" />
         <Column ss:Width="64" />
         <Column ss:Width="76" />
-        <Column ss:Width="118" />
         <Row ss:Height="28">
           ${excelCell(`客户名称：${page.order.customerName || '-'}`, 'headLeft', 1)}
-          ${excelCell('小莲粮油销售单', 'title', 3)}
+          ${excelCell('小莲粮油销售单', 'title', 2)}
           ${excelCell(`第 ${page.pageNo}/${page.pageTotal} 页`, 'headRight', 1)}
         </Row>
         <Row ss:Height="22">
           ${excelCell(`联系电话：${page.order.customerPhone || ''}`, 'headLeft', 1)}
-          ${excelCell(`录单日期：${deliveryData.value?.deliveryDate || '-'}`, 'headCenter', 3)}
+          ${excelCell(`录单日期：${deliveryData.value?.deliveryDate || '-'}`, 'headCenter', 2)}
           ${excelCell(`单据编号：${buildOrderNo(page.order)}`, 'headRight', 1)}
         </Row>
         <Row ss:Height="22">
           ${excelBlankCell('plain')}
-          ${excelBlankCell('plain')}
-          ${excelCell('电话：13599653816  13605001715', 'headCenter', 3)}
-          ${excelBlankCell('plain')}
+          ${excelCell('电话：13599653816  13605001715', 'headCenter', 4)}
           ${excelBlankCell('plain')}
         </Row>
-        <Row ss:Height="6">${Array.from({ length: 8 }, () => excelBlankCell('plain')).join('')}</Row>
+        <Row ss:Height="6">${Array.from({ length: 7 }, () => excelBlankCell('plain')).join('')}</Row>
         <Row ss:Height="24">
           ${excelCell('序号', 'tableHead')}
           ${excelCell('货品名称', 'tableHead')}
@@ -770,11 +753,10 @@ const renderExcelWorksheet = (page: PrintablePage, index: number) => {
           ${excelCell('数量', 'tableHead')}
           ${excelCell('单价', 'tableHead')}
           ${excelCell('金额', 'tableHead')}
-          ${excelCell('备注', 'tableHead')}
         </Row>
         ${renderExcelRows(page)}
         <Row ss:Height="22">
-          ${excelCell(remark ? `备注：${remark}` : '', 'plain', 7)}
+          ${excelCell(remark ? `备注：${remark}` : '', 'plain', 6)}
         </Row>
       </Table>
       <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
@@ -1052,10 +1034,6 @@ const printPage = () => {
       width: 18mm;
     }
 
-    .sale-table .remark-col {
-      width: 25mm;
-    }
-
     .center {
       text-align: center !important;
     }
@@ -1295,10 +1273,6 @@ onMounted(() => {
 
 .sale-table .amount {
   width: 18mm;
-}
-
-.sale-table .remark-col {
-  width: 25mm;
 }
 
 .center {

@@ -591,6 +591,12 @@ const handleDetail = async (row: CustomerVO) => {
 };
 
 const loadAmap = async () => {
+  const AMap = await loadAmapBase();
+  await loadAmapPlugins(['AMap.Geocoder', 'AMap.PlaceSearch', 'AMap.AutoComplete']);
+  return AMap;
+};
+
+const loadAmapBase = async () => {
   if (window.AMap) {
     return window.AMap;
   }
@@ -605,7 +611,7 @@ const loadAmap = async () => {
   if (!window.__amapLoading) {
     window.__amapLoading = new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = `https://webapi.amap.com/maps?v=2.0&key=${amapKey}&plugin=AMap.Geocoder,AMap.PlaceSearch,AMap.AutoComplete`;
+      script.src = `https://webapi.amap.com/maps?v=2.0&key=${amapKey}`;
       script.async = true;
       script.onload = () => resolve(window.AMap);
       script.onerror = () => reject(new Error('高德地图加载失败'));
@@ -613,6 +619,16 @@ const loadAmap = async () => {
     });
   }
   return window.__amapLoading;
+};
+
+const loadAmapPlugins = (plugins: string[]) => {
+  return new Promise<void>((resolve, reject) => {
+    if (!window.AMap?.plugin) {
+      reject(new Error('高德地图插件加载器不可用'));
+      return;
+    }
+    window.AMap.plugin(plugins, () => resolve());
+  });
 };
 
 const openMapPicker = () => {

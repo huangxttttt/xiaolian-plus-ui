@@ -34,12 +34,26 @@
             <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['system:deliveryOrder:add']">新增配货</el-button>
           </el-col>
           <el-col :span="1.5">
-            <el-button type="success" plain icon="Edit" :disabled="single || selectedHasArchived" @click="handleUpdate()" v-hasPermi="['system:deliveryOrder:edit']">
+            <el-button
+              type="success"
+              plain
+              icon="Edit"
+              :disabled="single || selectedHasArchived"
+              @click="handleUpdate()"
+              v-hasPermi="['system:deliveryOrder:edit']"
+            >
               修改
             </el-button>
           </el-col>
           <el-col :span="1.5">
-            <el-button type="danger" plain icon="Delete" :disabled="multiple || selectedHasArchived" @click="handleDelete()" v-hasPermi="['system:deliveryOrder:remove']">
+            <el-button
+              type="danger"
+              plain
+              icon="Delete"
+              :disabled="multiple || selectedHasArchived"
+              @click="handleDelete()"
+              v-hasPermi="['system:deliveryOrder:remove']"
+            >
               删除
             </el-button>
           </el-col>
@@ -99,112 +113,177 @@
         </el-table-column>
       </el-table>
 
-      <pagination
-        v-show="total > 0"
-        :total="total"
-        v-model:page="queryParams.pageNum"
-        v-model:limit="queryParams.pageSize"
-        @pagination="getList"
-      />
+      <pagination v-show="total > 0" :total="total" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize" @pagination="getList" />
     </el-card>
 
-    <el-dialog :title="dialog.title" v-model="dialog.visible" width="1100px" append-to-body>
+    <el-dialog
+      :title="dialog.title"
+      v-model="dialog.visible"
+      width="86vw"
+      class="delivery-order-dialog"
+      append-to-body
+      @opened="renderRouteMap"
+      @closed="destroyRouteMap"
+    >
       <el-form ref="deliveryOrderFormRef" :model="form" :rules="rules" label-width="90px">
-        <el-row :gutter="16">
-          <el-col :span="8">
-            <el-form-item label="配送日期" prop="deliveryDate">
-              <el-date-picker v-model="form.deliveryDate" value-format="YYYY-MM-DD" type="date" placeholder="请选择配送日期" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="配送地" prop="routeId">
-              <el-select v-model="form.routeId" placeholder="请选择配送地" filterable style="width: 100%" @change="handleRouteChange">
-                <el-option v-for="item in routeOptions" :key="item.routeId" :label="item.routeName" :value="item.routeId" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="状态" prop="status">
-              <el-select v-model="form.status" disabled style="width: 100%">
-                <el-option label="未归档" value="未归档" />
-                <el-option label="已归档" value="已归档" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="备注" prop="remark">
-          <el-input v-model="form.remark" placeholder="请输入备注" />
-        </el-form-item>
-
-        <el-divider content-position="left">客户订单</el-divider>
-        <div class="mb8">
-          <el-select
-            v-model="selectedCustomerId"
-            placeholder="选择客户后自动添加"
-            filterable
-            :disabled="!form.routeId"
-            style="width: 260px"
-            @change="addCustomerOrder"
-          >
-            <el-option v-for="item in availableCustomers" :key="item.customerId" :label="item.name" :value="item.customerId" />
-          </el-select>
-        </div>
-
-        <el-empty v-if="!form.customerOrders.length" description="请选择配送地后添加客户订单" />
-        <el-collapse v-else v-model="activeCustomerOrderNames">
-          <el-collapse-item v-for="(order, orderIndex) in form.customerOrders" :key="order.customerId" :name="String(order.customerId)">
-            <template #title>
-              <span class="font-medium">{{ order.customerName }}</span>
-              <span v-if="order.customerPhone" class="ml-3 text-gray-500">{{ order.customerPhone }}</span>
-              <span class="ml-3 text-gray-500">小计：{{ calcOrderTotal(order).toFixed(2) }}</span>
-            </template>
-            <div class="mb8">
-              <el-button type="primary" plain icon="Plus" @click="addItem(order)">添加商品</el-button>
-              <el-button type="danger" plain icon="Delete" @click="removeCustomerOrder(orderIndex)">移除客户</el-button>
-            </div>
-            <el-table border :data="order.items">
-              <el-table-column label="商品" min-width="180">
-                <template #default="{ row }">
-                  <el-cascader
-                    :model-value="getProductPath(row)"
-                    :options="categoryProductOptions"
-                    :props="productCascaderProps"
-                    placeholder="选择商品"
-                    filterable
-                    clearable
+        <div class="delivery-edit-layout">
+          <section class="delivery-map-section">
+            <div class="section-title">配送信息</div>
+            <el-row :gutter="12" class="delivery-info-grid">
+              <el-col :span="12">
+                <el-form-item label="配送日期" prop="deliveryDate">
+                  <el-date-picker
+                    v-model="form.deliveryDate"
+                    value-format="YYYY-MM-DD"
+                    type="date"
+                    placeholder="请选择配送日期"
                     style="width: 100%"
-                    @change="(value) => handleProductChange(row, value)"
                   />
-                </template>
-              </el-table-column>
-              <el-table-column label="规格" prop="specification" width="120" />
-              <el-table-column label="提供商" prop="supplier" width="140" />
-              <el-table-column label="数量" width="130">
-                <template #default="{ row }">
-                  <el-input-number v-model="row.quantity" :precision="2" :min="0.01" controls-position="right" style="width: 110px" />
-                </template>
-              </el-table-column>
-              <el-table-column label="销售价" width="130">
-                <template #default="{ row }">
-                  <el-input-number v-model="row.salePrice" :precision="2" :min="0" controls-position="right" style="width: 110px" />
-                </template>
-              </el-table-column>
-              <el-table-column label="成本价" width="130">
-                <template #default="{ row }">
-                  <el-input-number v-model="row.costPrice" :precision="2" :min="0" controls-position="right" style="width: 110px" />
-                </template>
-              </el-table-column>
-              <el-table-column label="金额" width="120">
-                <template #default="{ row }">{{ calcItemAmount(row).toFixed(2) }}</template>
-              </el-table-column>
-              <el-table-column label="操作" width="80" align="center">
-                <template #default="{ $index }">
-                  <el-button link type="primary" icon="Delete" @click="removeItem(order, $index)" />
-                </template>
-              </el-table-column>
-            </el-table>
-          </el-collapse-item>
-        </el-collapse>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="配送地" prop="routeId">
+                  <el-select v-model="form.routeId" placeholder="请选择配送地" filterable style="width: 100%" @change="handleRouteChange">
+                    <el-option v-for="item in routeOptions" :key="item.routeId" :label="item.routeName" :value="item.routeId" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="状态" prop="status">
+                  <el-select v-model="form.status" disabled style="width: 100%">
+                    <el-option label="未归档" value="未归档" />
+                    <el-option label="已归档" value="已归档" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="备注" prop="remark">
+                  <el-input v-model="form.remark" placeholder="请输入备注" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <div class="section-title">客户路线图</div>
+            <div class="route-map-panel">
+              <div class="route-map-summary">
+                <span>{{ selectedRouteName || '请选择配送地' }}</span>
+                <span>已定位 {{ routeMapCustomers.length }} 个客户</span>
+                <span v-if="routeMapCustomers.length">已智能排序</span>
+                <span v-if="routeMapMissingCount">未定位 {{ routeMapMissingCount }} 个客户</span>
+                <span v-if="routePlanDistance">规划 {{ routePlanDistance }}，约 {{ routePlanDuration }}</span>
+              </div>
+              <el-alert
+                v-if="!amapKey"
+                class="mb-2"
+                type="warning"
+                show-icon
+                :closable="false"
+                title="请先在 .env 中配置 VITE_APP_AMAP_KEY，配置后可展示客户路线图"
+              />
+              <div ref="routeMapContainerRef" v-loading="routeMapLoading" class="route-map"></div>
+              <div v-if="routeMapCustomers.length" class="route-customer-list">
+                <div
+                  v-for="(customer, index) in routeMapCustomers"
+                  :key="customer.customerId"
+                  class="route-customer-item"
+                  :class="{ 'is-low-share': customer.orderSharePercentage < 10 }"
+                  :style="getRouteCustomerShareStyle(customer.orderSharePercentage)"
+                  @click="focusRouteCustomer(customer)"
+                >
+                  <span class="route-customer-share-bg">{{ formatRouteCustomerShare(customer.orderSharePercentage) }}</span>
+                  <span class="route-customer-index">{{ index + 1 }}</span>
+                  <span class="route-customer-name">{{ customer.name }}</span>
+                  <span class="route-customer-share" :title="`该配送地订单占比：${formatRouteCustomerShare(customer.orderSharePercentage)}`">
+                    {{ customer.orderCount }}单
+                  </span>
+                  <el-button
+                    link
+                    type="primary"
+                    size="small"
+                    :disabled="hasCustomerOrder(customer.customerId)"
+                    @click.stop="addCustomerOrder(customer.customerId)"
+                  >
+                    {{ hasCustomerOrder(customer.customerId) ? '已添加' : '加订单' }}
+                  </el-button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="delivery-order-section">
+            <div class="section-title">客户订单</div>
+            <div class="mb8">
+              <el-select
+                v-model="selectedCustomerId"
+                placeholder="选择客户后自动添加"
+                filterable
+                :disabled="!form.routeId"
+                style="width: 260px"
+                @change="addCustomerOrder"
+              >
+                <el-option v-for="item in availableCustomers" :key="item.customerId" :label="item.name" :value="item.customerId" />
+              </el-select>
+            </div>
+
+            <div class="delivery-order-scroll">
+              <el-empty v-if="!form.customerOrders.length" description="请选择配送地后添加客户订单" />
+              <el-collapse v-else v-model="activeCustomerOrderNames">
+                <el-collapse-item v-for="(order, orderIndex) in form.customerOrders" :key="order.customerId" :name="String(order.customerId)">
+                  <template #title>
+                    <span class="font-medium">{{ order.customerName }}</span>
+                    <span v-if="order.customerPhone" class="ml-3 text-gray-500">{{ order.customerPhone }}</span>
+                    <span class="ml-3 text-gray-500">小计：{{ calcOrderTotal(order).toFixed(2) }}</span>
+                  </template>
+                  <div class="mb8">
+                    <el-button type="primary" plain icon="Plus" @click="addItem(order)">添加商品</el-button>
+                    <el-button type="success" plain icon="ShoppingCart" @click="addTopProducts(order)">添加常购商品</el-button>
+                    <el-button type="danger" plain icon="Delete" @click="removeCustomerOrder(orderIndex)">移除客户</el-button>
+                  </div>
+                  <el-table border :data="order.items">
+                    <el-table-column label="商品" min-width="180">
+                      <template #default="{ row }">
+                        <el-cascader
+                          :model-value="getProductPath(row)"
+                          :options="categoryProductOptions"
+                          :props="productCascaderProps"
+                          placeholder="选择商品"
+                          filterable
+                          clearable
+                          style="width: 100%"
+                          @change="(value) => handleProductChange(row, value)"
+                        />
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="规格" prop="specification" width="120" />
+                    <el-table-column label="提供商" prop="supplier" width="140" />
+                    <el-table-column label="数量" width="130">
+                      <template #default="{ row }">
+                        <el-input-number v-model="row.quantity" :precision="2" :min="0.01" controls-position="right" style="width: 110px" />
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="销售价" width="130">
+                      <template #default="{ row }">
+                        <el-input-number v-model="row.salePrice" :precision="2" :min="0" controls-position="right" style="width: 110px" />
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="成本价" width="130">
+                      <template #default="{ row }">
+                        <el-input-number v-model="row.costPrice" :precision="2" :min="0" controls-position="right" style="width: 110px" />
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="金额" width="120">
+                      <template #default="{ row }">{{ calcItemAmount(row).toFixed(2) }}</template>
+                    </el-table-column>
+                    <el-table-column label="操作" width="80" align="center">
+                      <template #default="{ $index }">
+                        <el-button link type="primary" icon="Delete" @click="removeItem(order, $index)" />
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                </el-collapse-item>
+              </el-collapse>
+            </div>
+          </section>
+        </div>
       </el-form>
       <template #footer>
         <div class="dialog-footer">
@@ -246,7 +325,6 @@
             <el-table-column label="金额" prop="amount" width="120">
               <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
             </el-table-column>
-            <el-table-column label="备注" prop="remark" min-width="140" />
           </el-table>
         </el-collapse-item>
       </el-collapse>
@@ -303,21 +381,60 @@
 </template>
 
 <script setup name="DeliveryOrder" lang="ts">
-import { listDeliveryOrder, getDeliveryOrder, delDeliveryOrder, addDeliveryOrder, updateDeliveryOrder, archiveDeliveryOrder } from '@/api/system/deliveryOrder';
+import {
+  listDeliveryOrder,
+  getDeliveryOrder,
+  delDeliveryOrder,
+  addDeliveryOrder,
+  updateDeliveryOrder,
+  archiveDeliveryOrder
+} from '@/api/system/deliveryOrder';
 import { CustomerOrderVO, DeliveryOrderForm, DeliveryOrderItemVO, DeliveryOrderQuery, DeliveryOrderVO } from '@/api/system/deliveryOrder/types';
 import { listRouteOptions } from '@/api/system/route';
 import { RouteVO } from '@/api/system/route/types';
-import { listCustomer } from '@/api/system/customer';
-import { CustomerVO } from '@/api/system/customer/types';
+import { getCustomerTopProducts, getRouteCustomerOrderStats, listCustomer } from '@/api/system/customer';
+import { CustomerVO, RouteCustomerOrderStatsVO } from '@/api/system/customer/types';
+import { getConfigKey } from '@/api/system/config';
 import { listProduct } from '@/api/system/product';
 import { ProductVO } from '@/api/system/product/types';
 
+declare global {
+  interface Window {
+    AMap?: any;
+    _AMapSecurityConfig?: {
+      securityJsCode: string;
+    };
+    __amapLoading?: Promise<any>;
+  }
+}
+
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 const router = useRouter();
+const amapKey = import.meta.env.VITE_APP_AMAP_KEY as string;
+const amapSecurityCode = import.meta.env.VITE_APP_AMAP_SECURITY_CODE as string;
+const routeStartPointConfigKey = 'biz.delivery.routeStartPoint';
+interface RouteStartPoint {
+  longitude: number;
+  latitude: number;
+  name: string;
+}
+
+interface RouteCustomerWithStats extends CustomerVO {
+  orderCount: number;
+  routeOrderCount: number;
+  orderSharePercentage: number;
+}
+const defaultRouteStartPoint: RouteStartPoint = {
+  longitude: 117.729033,
+  latitude: 24.540024,
+  name: '出发点'
+};
+const routeStartPoint = ref<RouteStartPoint>({ ...defaultRouteStartPoint });
 
 const deliveryOrderList = ref<DeliveryOrderVO[]>([]);
 const routeOptions = ref<RouteVO[]>([]);
 const customerOptions = ref<CustomerVO[]>([]);
+const routeCustomerOrderStats = ref<RouteCustomerOrderStatsVO[]>([]);
 const productOptions = ref<ProductVO[]>([]);
 const selectedCustomerId = ref<string | number>();
 const activeCustomerOrderNames = ref<string[]>([]);
@@ -329,6 +446,15 @@ const selectedRows = ref<DeliveryOrderVO[]>([]);
 const single = ref(true);
 const multiple = ref(true);
 const total = ref(0);
+const routeMapContainerRef = ref<HTMLDivElement>();
+const routeMapLoading = ref(false);
+const routePlanDistance = ref('');
+const routePlanDuration = ref('');
+let routeMapInstance: any;
+let routeMapMarkers: any[] = [];
+let routeMapCustomerMarkers = new Map<string | number, any>();
+let routeMapPolyline: any;
+let routeMapDriving: any;
 
 const queryFormRef = ref<ElFormInstance>();
 const deliveryOrderFormRef = ref<ElFormInstance>();
@@ -401,6 +527,105 @@ const { queryParams, form, rules } = toRefs(data);
 
 const selectedHasArchived = computed(() => selectedRows.value.some((item) => item.status === '已归档'));
 
+const selectedRouteName = computed(() => routeOptions.value.find((item) => item.routeId === form.value.routeId)?.routeName);
+
+const getPointDistance = (from: Pick<RouteStartPoint, 'longitude' | 'latitude'>, to: Pick<RouteStartPoint, 'longitude' | 'latitude'>) => {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const earthRadius = 6371000;
+  const fromLat = toRad(from.latitude);
+  const toLat = toRad(to.latitude);
+  const deltaLat = toRad(to.latitude - from.latitude);
+  const deltaLng = toRad(to.longitude - from.longitude);
+  const a = Math.sin(deltaLat / 2) ** 2 + Math.cos(fromLat) * Math.cos(toLat) * Math.sin(deltaLng / 2) ** 2;
+  return 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const calcRouteDistance = <T extends Pick<RouteStartPoint, 'longitude' | 'latitude'>>(customers: T[]) => {
+  let total = 0;
+  let current: Pick<RouteStartPoint, 'longitude' | 'latitude'> = routeStartPoint.value;
+  customers.forEach((customer) => {
+    total += getPointDistance(current, customer);
+    current = customer;
+  });
+  return total;
+};
+
+const optimizeRouteCustomers = <T extends Pick<RouteStartPoint, 'longitude' | 'latitude'>>(customers: T[]) => {
+  const remaining = [...customers];
+  const ordered: T[] = [];
+  let current: Pick<RouteStartPoint, 'longitude' | 'latitude'> = routeStartPoint.value;
+  while (remaining.length) {
+    let nearestIndex = 0;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    remaining.forEach((customer, index) => {
+      const distance = getPointDistance(current, customer);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+    const [next] = remaining.splice(nearestIndex, 1);
+    ordered.push(next);
+    current = next;
+  }
+
+  if (ordered.length < 4) {
+    return ordered;
+  }
+  let improved = true;
+  while (improved) {
+    improved = false;
+    for (let i = 0; i < ordered.length - 2; i++) {
+      for (let j = i + 1; j < ordered.length - 1; j++) {
+        const candidate = [...ordered.slice(0, i), ...ordered.slice(i, j + 1).reverse(), ...ordered.slice(j + 1)];
+        if (calcRouteDistance(candidate) < calcRouteDistance(ordered)) {
+          ordered.splice(0, ordered.length, ...candidate);
+          improved = true;
+        }
+      }
+    }
+  }
+  return ordered;
+};
+
+const routeCustomerOrderStatsMap = computed(() => {
+  const map = new Map<string | number, RouteCustomerOrderStatsVO>();
+  routeCustomerOrderStats.value.forEach((item) => map.set(item.customerId, item));
+  return map;
+});
+
+const routeCustomersWithStats = computed<RouteCustomerWithStats[]>(() =>
+  customerOptions.value.map((customer) => {
+    const stats = routeCustomerOrderStatsMap.value.get(customer.customerId);
+    return {
+      ...customer,
+      orderCount: Number(stats?.orderCount || 0),
+      routeOrderCount: Number(stats?.routeOrderCount || 0),
+      orderSharePercentage: Number(stats?.percentage || 0)
+    };
+  })
+);
+
+const routeMapCustomers = computed(() =>
+  optimizeRouteCustomers(
+    routeCustomersWithStats.value
+      .filter((item) => item.longitude && item.latitude)
+      .map((item) => ({
+        ...item,
+        longitude: Number(item.longitude),
+        latitude: Number(item.latitude)
+      }))
+  )
+);
+
+const routeMapMissingCount = computed(() => customerOptions.value.length - routeMapCustomers.value.length);
+
+const productMap = computed(() => {
+  const map = new Map<string | number, ProductVO>();
+  productOptions.value.forEach((item) => map.set(item.productId, item));
+  return map;
+});
+
 const availableCustomers = computed(() => {
   const used = new Set(form.value.customerOrders.map((item) => item.customerId));
   return customerOptions.value.filter((item) => !used.has(item.customerId));
@@ -414,7 +639,10 @@ const productCascaderProps = {
 };
 
 const categoryProductOptions = computed(() => {
-  const categoryMap = new Map<string | number, { value: string | number; label: string; children: Array<{ value: string | number; label: string }> }>();
+  const categoryMap = new Map<
+    string | number,
+    { value: string | number; label: string; children: Array<{ value: string | number; label: string }> }
+  >();
   productOptions.value.forEach((product) => {
     const categoryId = product.categoryId || 'uncategorized';
     const categoryName = product.categoryName || '未分类';
@@ -443,13 +671,59 @@ const getProductOptions = async () => {
   productOptions.value = res.rows;
 };
 
+const parseRouteStartPoint = (value?: string): RouteStartPoint | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  try {
+    const point = JSON.parse(value);
+    const longitude = Number(point.longitude);
+    const latitude = Number(point.latitude);
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+      return undefined;
+    }
+    return {
+      longitude,
+      latitude,
+      name: point.name || defaultRouteStartPoint.name
+    };
+  } catch {
+    return undefined;
+  }
+};
+
+const getRouteStartPointConfig = async () => {
+  try {
+    const res = await getConfigKey(routeStartPointConfigKey);
+    routeStartPoint.value = parseRouteStartPoint(res.data) || { ...defaultRouteStartPoint };
+  } catch {
+    routeStartPoint.value = { ...defaultRouteStartPoint };
+  }
+};
+
+const getRouteCustomerStats = async (routeId?: string | number) => {
+  if (!routeId) {
+    routeCustomerOrderStats.value = [];
+    return;
+  }
+  try {
+    const res = await getRouteCustomerOrderStats(routeId);
+    routeCustomerOrderStats.value = res.data || [];
+  } catch {
+    routeCustomerOrderStats.value = [];
+  }
+};
+
 const getCustomersByRoute = async (routeId?: string | number) => {
   if (!routeId) {
     customerOptions.value = [];
+    routeCustomerOrderStats.value = [];
+    await renderRouteMap();
     return;
   }
-  const res = await listCustomer({ pageNum: 1, pageSize: 9999, routeId });
-  customerOptions.value = res.rows;
+  const [customerRes] = await Promise.all([listCustomer({ pageNum: 1, pageSize: 9999, routeId }), getRouteCustomerStats(routeId)]);
+  customerOptions.value = customerRes.rows;
+  await renderRouteMap();
 };
 
 const getList = async () => {
@@ -510,9 +784,210 @@ const handleUpdate = async (row?: DeliveryOrderVO) => {
   Object.assign(form.value, res.data);
   form.value.customerOrders = res.data.customerOrders || [];
   activeCustomerOrderNames.value = form.value.customerOrders[0]?.customerId ? [String(form.value.customerOrders[0].customerId)] : [];
-  await getCustomersByRoute(form.value.routeId);
   dialog.visible = true;
   dialog.title = '修改配货装车单';
+  await getCustomersByRoute(form.value.routeId);
+};
+
+const loadAmap = async () => {
+  const AMap = await loadAmapBase();
+  await loadAmapPlugins(['AMap.Driving']);
+  return AMap;
+};
+
+const loadAmapBase = async () => {
+  if (window.AMap) {
+    return window.AMap;
+  }
+  if (!amapKey) {
+    throw new Error('请先配置高德地图 Key');
+  }
+  if (amapSecurityCode) {
+    window._AMapSecurityConfig = {
+      securityJsCode: amapSecurityCode
+    };
+  }
+  if (!window.__amapLoading) {
+    window.__amapLoading = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = `https://webapi.amap.com/maps?v=2.0&key=${amapKey}`;
+      script.async = true;
+      script.onload = () => resolve(window.AMap);
+      script.onerror = () => reject(new Error('高德地图加载失败'));
+      document.head.appendChild(script);
+    });
+  }
+  return window.__amapLoading;
+};
+
+const loadAmapPlugins = (plugins: string[]) => {
+  return new Promise<void>((resolve, reject) => {
+    if (!window.AMap?.plugin) {
+      reject(new Error('高德地图插件加载器不可用'));
+      return;
+    }
+    window.AMap.plugin(plugins, () => resolve());
+  });
+};
+
+const clearRouteMapOverlays = () => {
+  if (!routeMapInstance) {
+    return;
+  }
+  routePlanDistance.value = '';
+  routePlanDuration.value = '';
+  if (routeMapMarkers.length) {
+    routeMapInstance.remove(routeMapMarkers);
+    routeMapMarkers = [];
+  }
+  routeMapCustomerMarkers = new Map();
+  if (routeMapPolyline) {
+    routeMapInstance.remove(routeMapPolyline);
+    routeMapPolyline = undefined;
+  }
+  if (routeMapDriving) {
+    routeMapDriving.clear();
+  }
+};
+
+const formatRouteDistance = (meters?: number) => {
+  const value = Number(meters || 0);
+  return value >= 1000 ? `${(value / 1000).toFixed(1)} 公里` : `${value.toFixed(0)} 米`;
+};
+
+const formatRouteDuration = (seconds?: number) => {
+  const value = Number(seconds || 0);
+  if (value >= 3600) {
+    const hours = Math.floor(value / 3600);
+    const minutes = Math.round((value % 3600) / 60);
+    return `${hours} 小时 ${minutes} 分钟`;
+  }
+  return `${Math.round(value / 60)} 分钟`;
+};
+
+const renderDrivingRoute = (AMap: any, points: number[][]) => {
+  if (!points.length) {
+    return;
+  }
+  if (routeMapDriving) {
+    routeMapDriving.clear();
+  }
+  routeMapDriving = new AMap.Driving({
+    map: routeMapInstance,
+    hideMarkers: true,
+    autoFitView: false
+  });
+  const origin = [routeStartPoint.value.longitude, routeStartPoint.value.latitude];
+  const destination = points[points.length - 1];
+  const waypoints = points.slice(0, -1);
+  routeMapDriving.search(origin, destination, { waypoints }, (status: string, result: any) => {
+    if (status !== 'complete') {
+      routeMapPolyline = new AMap.Polyline({
+        path: [origin, ...points],
+        strokeColor: '#1677ff',
+        strokeWeight: 4,
+        strokeOpacity: 0.9,
+        lineJoin: 'round'
+      });
+      routeMapInstance.add(routeMapPolyline);
+      return;
+    }
+    const route = result?.routes?.[0];
+    routePlanDistance.value = formatRouteDistance(route?.distance);
+    routePlanDuration.value = formatRouteDuration(route?.time);
+  });
+};
+
+const openRouteCustomerInfo = (AMap: any, customer: CustomerVO, marker: any) => {
+  new AMap.InfoWindow({
+    content: `<div class="route-map-info"><strong>${customer.name}</strong><br/>${customer.phone || ''}<br/>${customer.mapAddress || customer.mapLocation || ''}</div>`
+  }).open(routeMapInstance, marker.getPosition());
+};
+
+const focusRouteCustomer = async (customer: CustomerVO) => {
+  if (!customer.longitude || !customer.latitude || !routeMapContainerRef.value || !amapKey) {
+    return;
+  }
+  try {
+    const AMap = await loadAmap();
+    if (!routeMapInstance) {
+      await renderRouteMap();
+    }
+    const marker = routeMapCustomerMarkers.get(customer.customerId);
+    const position = [Number(customer.longitude), Number(customer.latitude)];
+    routeMapInstance?.setZoomAndCenter(15, position);
+    if (marker) {
+      openRouteCustomerInfo(AMap, customer, marker);
+    }
+  } catch (error) {
+    proxy?.$modal.msgError((error as Error).message || '客户定位失败');
+  }
+};
+
+const renderRouteMap = async () => {
+  await nextTick();
+  if (!dialog.visible || !routeMapContainerRef.value || !amapKey) {
+    return;
+  }
+  routeMapLoading.value = true;
+  try {
+    const AMap = await loadAmap();
+    if (!routeMapInstance) {
+      routeMapInstance = new AMap.Map(routeMapContainerRef.value, {
+        zoom: 13,
+        center: [113.30765, 23.120049]
+      });
+    }
+    clearRouteMapOverlays();
+    const points = routeMapCustomers.value.map((item) => [item.longitude, item.latitude]);
+    const startMarker = new AMap.Marker({
+      position: [routeStartPoint.value.longitude, routeStartPoint.value.latitude],
+      title: routeStartPoint.value.name,
+      label: {
+        content: routeStartPoint.value.name,
+        direction: 'top'
+      }
+    });
+    routeMapMarkers = routeMapCustomers.value.map((item, index) => {
+      const marker = new AMap.Marker({
+        position: [item.longitude, item.latitude],
+        title: item.name,
+        label: {
+          content: `${index + 1}. ${item.name}`,
+          direction: 'top'
+        }
+      });
+      marker.on('click', () => {
+        openRouteCustomerInfo(AMap, item, marker);
+      });
+      routeMapCustomerMarkers.set(item.customerId, marker);
+      return marker;
+    });
+    routeMapMarkers.unshift(startMarker);
+    if (routeMapMarkers.length) {
+      routeMapInstance.add(routeMapMarkers);
+    }
+    renderDrivingRoute(AMap, points);
+    if (points.length) {
+      routeMapInstance.setFitView([...routeMapMarkers, routeMapPolyline].filter(Boolean), false, [60, 60, 60, 60]);
+    }
+  } catch (error) {
+    proxy?.$modal.msgError((error as Error).message || '客户路线图加载失败');
+  } finally {
+    routeMapLoading.value = false;
+  }
+};
+
+const destroyRouteMap = () => {
+  clearRouteMapOverlays();
+  routeMapDriving = undefined;
+  routeMapPolyline = undefined;
+  routeMapMarkers = [];
+  routeMapCustomerMarkers = new Map();
+  if (routeMapInstance) {
+    routeMapInstance.destroy();
+    routeMapInstance = undefined;
+  }
 };
 
 const handleDetail = async (row: DeliveryOrderVO) => {
@@ -590,12 +1065,21 @@ const submitArchive = async () => {
   await getList();
 };
 
-const addCustomerOrder = () => {
-  if (!selectedCustomerId.value) {
+const hasCustomerOrder = (customerId?: string | number) => {
+  return !!customerId && form.value.customerOrders.some((item) => item.customerId === customerId);
+};
+
+const addCustomerOrder = (customerId?: string | number) => {
+  const targetCustomerId = customerId || selectedCustomerId.value;
+  if (!targetCustomerId) {
     proxy?.$modal.msgWarning('请选择客户');
     return;
   }
-  const customer = customerOptions.value.find((item) => item.customerId === selectedCustomerId.value);
+  if (hasCustomerOrder(targetCustomerId)) {
+    selectedCustomerId.value = undefined;
+    return;
+  }
+  const customer = customerOptions.value.find((item) => item.customerId === targetCustomerId);
   if (!customer) return;
   const order: CustomerOrderVO = {
     customerId: customer.customerId,
@@ -620,12 +1104,25 @@ const removeCustomerOrder = (index: number) => {
 };
 
 const createEmptyItem = (): DeliveryOrderItemVO => ({
-    categoryId: undefined,
-    productPath: [],
-    productId: undefined,
-    quantity: 1,
-    salePrice: 0,
-    costPrice: 0
+  categoryId: undefined,
+  productPath: [],
+  productId: undefined,
+  quantity: 1,
+  salePrice: 0,
+  costPrice: 0
+});
+
+const createItemFromProduct = (product: ProductVO): DeliveryOrderItemVO => ({
+  categoryId: product.categoryId,
+  categoryName: product.categoryName,
+  productPath: [product.categoryId, product.productId],
+  productId: product.productId,
+  productName: product.productName,
+  specification: product.specification,
+  supplier: product.supplier,
+  quantity: 1,
+  salePrice: product.latestSaleAmount || 0,
+  costPrice: product.latestCostPrice || 0
 });
 
 const addItem = (order: CustomerOrderVO) => {
@@ -638,6 +1135,31 @@ const addItem = (order: CustomerOrderVO) => {
 
 const removeItem = (order: CustomerOrderVO, index: number) => {
   order.items.splice(index, 1);
+};
+
+const addTopProducts = async (order: CustomerOrderVO) => {
+  if (!order.customerId) {
+    proxy?.$modal.msgWarning('请先选择客户');
+    return;
+  }
+  const res = await getCustomerTopProducts(order.customerId);
+  const existingProductIds = new Set(order.items.map((item) => item.productId).filter(Boolean));
+  const products = (res.data || [])
+    .map((item) => productMap.value.get(item.productId))
+    .filter((item): item is ProductVO => !!item && !existingProductIds.has(item.productId));
+
+  if (!products.length) {
+    proxy?.$modal.msgWarning('该客户暂无可添加的常购商品');
+    return;
+  }
+  if (order.items.length === 1 && !order.items[0].productId) {
+    order.items.splice(0, 1);
+  }
+  order.items.push(...products.map(createItemFromProduct));
+  const orderName = String(order.customerId);
+  if (!activeCustomerOrderNames.value.includes(orderName)) {
+    activeCustomerOrderNames.value.push(orderName);
+  }
 };
 
 const getProductPath = (row: DeliveryOrderItemVO) => {
@@ -688,6 +1210,30 @@ const formatAmount = (value?: number) => {
   return Number(value || 0).toFixed(2);
 };
 
+const formatRouteCustomerShare = (value?: number) => {
+  return `${Number(value || 0).toFixed(1)}%`;
+};
+
+const getRouteCustomerShareStyle = (value?: number) => {
+  const percentage = Math.max(0, Math.min(100, Number(value || 0)));
+  if (percentage < 10) {
+    return {
+      '--share-percent': `${percentage}%`,
+      '--share-bg': 'rgba(245, 108, 108, 0.14)',
+      '--share-fill': 'rgba(245, 108, 108, 0.22)',
+      '--share-text': 'rgba(245, 108, 108, 0.28)'
+    };
+  }
+  const alpha = Math.min(0.5, 0.12 + percentage * 0.004);
+  const textAlpha = Math.min(0.38, 0.16 + percentage * 0.003);
+  return {
+    '--share-percent': `${percentage}%`,
+    '--share-bg': `rgba(103, 194, 58, ${alpha})`,
+    '--share-fill': `rgba(82, 168, 39, ${Math.min(0.55, alpha + 0.12)})`,
+    '--share-text': `rgba(35, 120, 26, ${textAlpha})`
+  };
+};
+
 const normalizeForm = () => {
   return {
     ...form.value,
@@ -698,8 +1244,7 @@ const normalizeForm = () => {
         productId: item.productId,
         quantity: item.quantity,
         salePrice: item.salePrice,
-        costPrice: item.costPrice,
-        remark: item.remark
+        costPrice: item.costPrice
       }))
     }))
   };
@@ -761,8 +1306,177 @@ const handleExport = () => {
 };
 
 onMounted(() => {
+  getRouteStartPointConfig();
   getRouteOptions();
   getProductOptions();
   getList();
 });
 </script>
+
+<style scoped>
+:deep(.delivery-order-dialog .el-dialog__body) {
+  max-height: calc(100vh - 180px);
+  overflow: hidden;
+}
+
+.delivery-edit-layout {
+  display: grid;
+  grid-template-columns: minmax(420px, 46%) minmax(520px, 1fr);
+  gap: 16px;
+  min-height: 600px;
+}
+
+.delivery-map-section,
+.delivery-order-section {
+  min-width: 0;
+}
+
+.delivery-order-section {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid #ebeef5;
+  padding-left: 16px;
+}
+
+.delivery-order-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.section-title {
+  margin-bottom: 10px;
+  color: #303133;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.delivery-info-grid {
+  margin-bottom: 6px;
+}
+
+.route-map-panel {
+  width: 100%;
+}
+
+.route-map-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 8px;
+  color: #606266;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.route-map-summary span:first-child {
+  color: #303133;
+  font-weight: 600;
+}
+
+.route-map {
+  width: 100%;
+  height: 440px;
+  border: 1px solid #dcdfe6;
+}
+
+.route-customer-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.route-customer-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  background:
+    linear-gradient(90deg, var(--share-fill) 0%, var(--share-fill) var(--share-percent, 0%), transparent var(--share-percent, 0%)),
+    var(--share-bg, #fafafa);
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.route-customer-item:hover {
+  border-color: #409eff;
+}
+
+.route-customer-item.is-low-share {
+  border-color: #fde2e2;
+}
+
+.route-customer-share-bg {
+  position: absolute;
+  right: 38px;
+  bottom: -5px;
+  z-index: 0;
+  color: var(--share-text, rgb(0 0 0 / 12%));
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.route-customer-index {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 22px;
+  color: #606266;
+  font-size: 12px;
+}
+
+.route-customer-name {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #303133;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-customer-share {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  margin: 0 8px;
+  color: #606266;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+:deep(.amap-marker-label) {
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: #303133;
+  font-size: 12px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
+}
+
+@media (max-width: 1280px) {
+  .delivery-edit-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .delivery-order-section {
+    border-left: none;
+    border-top: 1px solid #ebeef5;
+    padding-top: 16px;
+    padding-left: 0;
+  }
+}
+</style>
