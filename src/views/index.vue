@@ -6,7 +6,9 @@
           <p class="metric-label">今日营业额</p>
           <p class="metric-value">{{ money(summary.todaySales.amount) }}</p>
           <p class="metric-meta">已归档 {{ money(summary.todaySales.archivedAmount) }} · 未归档 {{ money(summary.todaySales.unarchivedAmount) }}</p>
-          <p class="metric-compare">昨日 {{ money(summary.todaySales.previousAmount) }} · {{ compareText(summary.todaySales.amount, summary.todaySales.previousAmount) }}</p>
+          <p class="metric-compare">
+            昨日 {{ money(summary.todaySales.previousAmount) }} · {{ compareText(summary.todaySales.amount, summary.todaySales.previousAmount) }}
+          </p>
         </div>
         <div class="sparkline">
           <div ref="todaySalesChartRef" class="sparkline-chart"></div>
@@ -19,7 +21,9 @@
           <p class="metric-label">本月营业额</p>
           <p class="metric-value">{{ money(summary.monthSales.amount) }}</p>
           <p class="metric-meta">{{ summary.monthSales.orderCount }} 单 · {{ summary.monthSales.customerCount }} 户客户</p>
-          <p class="metric-compare">上月 {{ money(summary.monthSales.previousAmount) }} · {{ compareText(summary.monthSales.amount, summary.monthSales.previousAmount) }}</p>
+          <p class="metric-compare">
+            上月 {{ money(summary.monthSales.previousAmount) }} · {{ compareText(summary.monthSales.amount, summary.monthSales.previousAmount) }}
+          </p>
         </div>
         <div class="sparkline">
           <div ref="monthSalesChartRef" class="sparkline-chart"></div>
@@ -32,7 +36,9 @@
           <p class="metric-label">今年营业额</p>
           <p class="metric-value">{{ money(summary.yearSales.amount) }}</p>
           <p class="metric-meta">{{ summary.yearSales.orderCount }} 单 · {{ summary.yearSales.customerCount }} 户客户</p>
-          <p class="metric-compare">去年 {{ money(summary.yearSales.previousAmount) }} · {{ compareText(summary.yearSales.amount, summary.yearSales.previousAmount) }}</p>
+          <p class="metric-compare">
+            去年 {{ money(summary.yearSales.previousAmount) }} · {{ compareText(summary.yearSales.amount, summary.yearSales.previousAmount) }}
+          </p>
         </div>
         <div class="sparkline">
           <div ref="yearSalesChartRef" class="sparkline-chart"></div>
@@ -329,6 +335,7 @@
         </el-collapse>
       </div>
       <template #footer>
+        <el-button type="primary" icon="Plus" @click="openDeliveryOrderCreate">新增配货装车</el-button>
         <el-button @click="todayOrderDialog.visible = false">关闭</el-button>
       </template>
     </el-dialog>
@@ -473,9 +480,7 @@ const profitOverviewItems = computed(() => [
   { label: '今年盈利', data: summary.yearProfit }
 ]);
 const todayDeliveryCount = computed(() => todayOrderDetails.value.length);
-const todayCustomerOrderCount = computed(() =>
-  todayOrderDetails.value.reduce((sum, item) => sum + Number(item.customerOrders?.length || 0), 0)
-);
+const todayCustomerOrderCount = computed(() => todayOrderDetails.value.reduce((sum, item) => sum + Number(item.customerOrders?.length || 0), 0));
 const todayOrderTotalAmount = computed(() => todayOrderDetails.value.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0));
 const archiveTotalAmount = computed(() => archiveReceipts.value.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0));
 const archiveReceivedAmount = computed(() => archiveReceipts.value.reduce((sum, item) => sum + Number(item.receivedAmount || 0), 0));
@@ -542,6 +547,17 @@ const openTodayOrders = async () => {
   } finally {
     todayOrderLoading.value = false;
   }
+};
+
+const openDeliveryOrderCreate = () => {
+  todayOrderDialog.visible = false;
+  router.push({
+    path: '/orderManage/deliveryOrder',
+    query: {
+      action: 'add',
+      deliveryDate: todayOrderDate.value || getCurrentDate()
+    }
+  });
 };
 
 const handleArchive = async (row: DeliveryOrderVO) => {
@@ -641,7 +657,12 @@ const normalizeSparkline = (points: DashboardTrendPoint[]) => {
   };
 };
 
-const renderSparkline = (chartRef: Ref<HTMLElement | undefined>, chart: echarts.ECharts | undefined, points: DashboardTrendPoint[], color: string) => {
+const renderSparkline = (
+  chartRef: Ref<HTMLElement | undefined>,
+  chart: echarts.ECharts | undefined,
+  points: DashboardTrendPoint[],
+  color: string
+) => {
   if (!chartRef.value) return chart;
   const instance = chart || echarts.init(chartRef.value);
   const data = normalizeSparkline(points);
@@ -959,7 +980,10 @@ onUnmounted(() => {
 
 .actionable-panel {
   cursor: pointer;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
 }
 
 .actionable-panel:hover {

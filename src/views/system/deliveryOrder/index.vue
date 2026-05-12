@@ -410,6 +410,7 @@ declare global {
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 const router = useRouter();
+const route = useRoute();
 const amapKey = import.meta.env.VITE_APP_AMAP_KEY as string;
 const amapSecurityCode = import.meta.env.VITE_APP_AMAP_SECURITY_CODE as string;
 const routeStartPointConfigKey = 'biz.delivery.routeStartPoint';
@@ -775,6 +776,21 @@ const handleAdd = () => {
   reset();
   dialog.visible = true;
   dialog.title = '新增配货装车单';
+};
+
+const getQueryValue = (value: unknown) => (Array.isArray(value) ? value[0] : value);
+
+const openAddFromRouteQuery = () => {
+  if (getQueryValue(route.query.action) !== 'add') {
+    return;
+  }
+  handleAdd();
+  const deliveryDate = getQueryValue(route.query.deliveryDate);
+  if (typeof deliveryDate === 'string' && deliveryDate) {
+    form.value.deliveryDate = deliveryDate;
+  }
+  const { action, deliveryDate: _deliveryDate, ...restQuery } = route.query;
+  router.replace({ path: route.path, query: restQuery });
 };
 
 const handleUpdate = async (row?: DeliveryOrderVO) => {
@@ -1310,7 +1326,13 @@ onMounted(() => {
   getRouteOptions();
   getProductOptions();
   getList();
+  openAddFromRouteQuery();
 });
+
+watch(
+  () => route.query.action,
+  () => openAddFromRouteQuery()
+);
 </script>
 
 <style scoped>
