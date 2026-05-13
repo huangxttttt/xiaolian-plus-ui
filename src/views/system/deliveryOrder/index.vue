@@ -192,14 +192,17 @@
                 >
                   <span class="route-customer-share-bg">{{ formatRouteCustomerShare(customer.orderSharePercentage) }}</span>
                   <span class="route-customer-index">{{ index + 1 }}</span>
-                  <span class="route-customer-name">{{ customer.name }}</span>
-                  <el-tag v-if="!hasCustomerLocation(customer)" class="route-customer-location-tag" size="small" type="danger" effect="plain"
-                    >无位置</el-tag
-                  >
-                  <span class="route-customer-share" :title="`该配送地订单占比：${formatRouteCustomerShare(customer.orderSharePercentage)}`">
-                    {{ customer.orderCount }}单
+                  <span class="route-customer-main">
+                    <span class="route-customer-name-row">
+                      <span class="route-customer-name" :title="customer.name">{{ customer.name }}</span>
+                    </span>
+                    <span class="route-customer-share" :title="`该配送地订单占比：${formatRouteCustomerShare(customer.orderSharePercentage)}`">
+                      {{ customer.orderCount }}单 · {{ formatRouteCustomerShare(customer.orderSharePercentage) }}
+                    </span>
                   </span>
+                  <span v-if="!hasCustomerLocation(customer)" class="route-customer-location-tag">无位置</span>
                   <el-button
+                    class="route-customer-action"
                     link
                     type="primary"
                     size="small"
@@ -215,18 +218,6 @@
 
           <section class="delivery-order-section">
             <div class="section-title">客户订单</div>
-            <div class="mb8">
-              <el-select
-                v-model="selectedCustomerId"
-                placeholder="选择客户后自动添加"
-                filterable
-                :disabled="!activeRouteId"
-                style="width: 260px"
-                @change="addCustomerOrder"
-              >
-                <el-option v-for="item in availableCustomers" :key="item.customerId" :label="item.name" :value="item.customerId" />
-              </el-select>
-            </div>
 
             <div class="delivery-order-scroll">
               <el-empty v-if="!form.customerOrders.length" description="请选择配送地后添加客户订单" />
@@ -444,7 +435,6 @@ const routeOptions = ref<RouteVO[]>([]);
 const customerOptions = ref<CustomerVO[]>([]);
 const routeCustomerOrderStats = ref<RouteCustomerOrderStatsVO[]>([]);
 const productOptions = ref<ProductVO[]>([]);
-const selectedCustomerId = ref<string | number>();
 const activeRouteId = ref<string | number>();
 const activeCustomerOrderNames = ref<string[]>([]);
 const buttonLoading = ref(false);
@@ -637,7 +627,9 @@ const routeMapCustomers = computed(() =>
 
 const routeMapMissingCustomers = computed(() => routeCustomersWithStats.value.filter((item) => !hasCustomerLocation(item)));
 
-const routeMapDisplayCustomers = computed(() => [...routeMapCustomers.value, ...routeMapMissingCustomers.value]);
+const routeMapDisplayCustomers = computed(() =>
+  [...routeMapCustomers.value, ...routeMapMissingCustomers.value].filter((customer) => !hasCustomerOrder(customer.customerId))
+);
 
 const routeMapMissingCount = computed(() => routeMapMissingCustomers.value.length);
 
@@ -645,11 +637,6 @@ const productMap = computed(() => {
   const map = new Map<string | number, ProductVO>();
   productOptions.value.forEach((item) => map.set(item.productId, item));
   return map;
-});
-
-const availableCustomers = computed(() => {
-  const used = new Set(form.value.customerOrders.map((item) => item.customerId));
-  return customerOptions.value.filter((item) => !used.has(item.customerId));
 });
 
 const productCascaderProps = {
@@ -759,7 +746,6 @@ const handleRouteChange = async () => {
   if (!form.value.routeId || !form.value.customerOrders.length) {
     form.value.routeId = activeRouteId.value;
   }
-  selectedCustomerId.value = undefined;
   await getCustomersByRoute(activeRouteId.value);
 };
 
@@ -771,7 +757,6 @@ const cancel = () => {
 const reset = () => {
   form.value = { ...initFormData, customerOrders: [] };
   activeRouteId.value = undefined;
-  selectedCustomerId.value = undefined;
   activeCustomerOrderNames.value = [];
   customerOptions.value = [];
   deliveryOrderFormRef.value?.resetFields();
@@ -1117,16 +1102,14 @@ const hasCustomerOrder = (customerId?: string | number) => {
 };
 
 const addCustomerOrder = (customerId?: string | number) => {
-  const targetCustomerId = customerId || selectedCustomerId.value;
-  if (!targetCustomerId) {
-    proxy?.$modal.msgWarning('请选择客户');
+  if (!customerId) {
+    proxy?.$modal.msgWarning('请选择左侧客户');
     return;
   }
-  if (hasCustomerOrder(targetCustomerId)) {
-    selectedCustomerId.value = undefined;
+  if (hasCustomerOrder(customerId)) {
     return;
   }
-  const customer = customerOptions.value.find((item) => item.customerId === targetCustomerId);
+  const customer = customerOptions.value.find((item) => item.customerId === customerId);
   if (!customer) return;
   const order: CustomerOrderVO = {
     customerId: customer.customerId,
@@ -1140,7 +1123,6 @@ const addCustomerOrder = (customerId?: string | number) => {
   if (!activeCustomerOrderNames.value.includes(orderName)) {
     activeCustomerOrderNames.value.push(orderName);
   }
-  selectedCustomerId.value = undefined;
 };
 
 const removeCustomerOrder = (index: number) => {
@@ -1439,18 +1421,20 @@ watch(
 
 .route-customer-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 8px;
   margin-top: 10px;
 }
 
 .route-customer-item {
   position: relative;
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 46px;
+  align-items: stretch;
+  column-gap: 6px;
   min-width: 0;
-  height: 34px;
-  padding: 0 10px;
+  min-height: 52px;
+  padding: 7px 8px;
   border: 1px solid #ebeef5;
   border-radius: 4px;
   background:
@@ -1472,17 +1456,27 @@ watch(
 }
 
 .route-customer-item.is-missing-location {
-  border-color: #f56c6c;
+  border-color: #f3b4b4;
   cursor: default;
+}
+
+.route-customer-item.is-missing-location::after {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border: 1px dashed rgb(245 108 108 / 45%);
+  border-radius: 4px;
+  content: '';
+  pointer-events: none;
 }
 
 .route-customer-share-bg {
   position: absolute;
-  right: 38px;
-  bottom: -5px;
+  right: 56px;
+  bottom: -3px;
   z-index: 0;
   color: var(--share-text, rgb(0 0 0 / 12%));
-  font-size: 24px;
+  font-size: 25px;
   font-weight: 700;
   line-height: 1;
   pointer-events: none;
@@ -1491,37 +1485,69 @@ watch(
 .route-customer-index {
   position: relative;
   z-index: 1;
-  flex: 0 0 22px;
+  align-self: start;
   color: #606266;
   font-size: 12px;
+  line-height: 18px;
+}
+
+.route-customer-main {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.route-customer-name-row {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 4px;
 }
 
 .route-customer-name {
-  position: relative;
-  z-index: 1;
-  flex: 1;
+  display: -webkit-box;
   min-width: 0;
   overflow: hidden;
   color: #303133;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 12px;
+  line-height: 17px;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .route-customer-share {
-  position: relative;
-  z-index: 1;
-  flex: 0 0 auto;
-  margin: 0 8px;
   color: #606266;
   font-size: 12px;
+  line-height: 16px;
   white-space: nowrap;
 }
 
 .route-customer-location-tag {
+  position: absolute;
+  top: 5px;
+  right: 52px;
+  z-index: 2;
+  border: 1px solid rgb(245 108 108 / 38%);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 88%);
+  color: #c45656;
+  font-size: 11px;
+  line-height: 16px;
+  padding: 0 6px;
+  pointer-events: none;
+}
+
+.route-customer-action {
   position: relative;
   z-index: 1;
-  flex: 0 0 auto;
-  margin-left: 6px;
+  align-self: start;
+  justify-self: end;
+  min-width: 40px;
+  padding: 0;
 }
 
 :deep(.amap-marker-label) {
