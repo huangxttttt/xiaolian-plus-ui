@@ -39,9 +39,9 @@
         <div v-else class="place-list">
           <button
             v-for="place in discoveredPlaces"
-            :key="place.id"
+            :key="place.uid"
             class="place-item"
-            :class="{ 'is-active': activePlace?.id === place.id }"
+            :class="{ 'is-active': activePlace?.uid === place.uid }"
             type="button"
             @click="focusPlace(place)"
           >
@@ -101,6 +101,7 @@ declare global {
 
 interface DiscoveredPlace {
   id: string;
+  uid: string;
   name: string;
   address: string;
   tel: string;
@@ -134,7 +135,9 @@ let mapInstance: any;
 let placeSearchInstance: any;
 let geocoderInstance: any;
 let placeMarkers: any[] = [];
+let placeMarkerMap = new Map<string, any>();
 let centerMarker: any;
+let activeInfoWindow: any;
 
 const selectedRouteName = computed(() => routeOptions.value.find((item) => item.routeId === searchForm.routeId)?.routeName || '');
 
@@ -245,14 +248,35 @@ const geocodeRouteCenter = async () => {
 
 const clearMarkers = () => {
   if (!mapInstance) return;
+  activeInfoWindow?.close();
+  activeInfoWindow = undefined;
   if (placeMarkers.length) {
     mapInstance.remove(placeMarkers);
     placeMarkers = [];
   }
+  placeMarkerMap = new Map();
   if (centerMarker) {
     mapInstance.remove(centerMarker);
     centerMarker = undefined;
   }
+};
+
+const buildInfoWindowContent = (place: DiscoveredPlace) => `
+  <div class="discovery-info-window">
+    <strong>${place.name}</strong>
+    <span>${place.address || '-'}</span>
+    <span>${place.tel || '无电话'}</span>
+  </div>
+`;
+
+const setMarkerActive = (activeId?: string) => {
+  placeMarkerMap.forEach((marker, markerId) => {
+    marker.setLabel({
+      content: marker.getExtData()?.label || '',
+      direction: 'top'
+    });
+    marker.setzIndex(markerId === activeId ? 120 : 100);
+  });
 };
 
 const renderMarkers = async (center: number[]) => {
@@ -274,16 +298,21 @@ const renderMarkers = async (center: number[]) => {
       label: {
         content: `${index + 1}. ${place.name}`,
         direction: 'top'
+      },
+      zIndex: 100,
+      extData: {
+        label: `${index + 1}. ${place.name}`
       }
     });
     marker.on('click', () => focusPlace(place));
+    placeMarkerMap.set(place.uid, marker);
     return marker;
   });
   mapInstance.add([centerMarker, ...placeMarkers]);
   mapInstance.setFitView([centerMarker, ...placeMarkers], false, [60, 60, 60, 60]);
 };
 
-const mapPoi = (poi: any): DiscoveredPlace | undefined => {
+const mapPoi = (poi: any, index: number): DiscoveredPlace | undefined => {
   const lng = Number(poi.location?.lng);
   const lat = Number(poi.location?.lat);
   if (!poi.id || !Number.isFinite(lng) || !Number.isFinite(lat)) {
@@ -291,6 +320,7 @@ const mapPoi = (poi: any): DiscoveredPlace | undefined => {
   }
   const place = {
     id: poi.id,
+    uid: `${poi.id}-${lng}-${lat}-${index}`,
     name: poi.name || '',
     address: Array.isArray(poi.address) ? poi.address.join('') : poi.address || '',
     tel: Array.isArray(poi.tel) ? poi.tel.join(',') : poi.tel || '',
@@ -348,9 +378,20 @@ const handleRouteChange = () => {
 };
 
 const focusPlace = async (place: DiscoveredPlace) => {
+  const AMap = await loadAmap();
   activePlace.value = place;
   await initMap();
-  mapInstance?.setZoomAndCenter(16, [place.location.lng, place.location.lat]);
+  const position = new AMap.LngLat(place.location.lng, place.location.lat);
+  const marker = placeMarkerMap.get(place.uid);
+  setMarkerActive(place.uid);
+  mapInstance?.setZoomAndCenter(17, position, false);
+  mapInstance?.panTo(position);
+  activeInfoWindow?.close();
+  activeInfoWindow = new AMap.InfoWindow({
+    content: buildInfoWindowContent(place),
+    offset: new AMap.Pixel(0, -30)
+  });
+  activeInfoWindow.open(mapInstance, marker?.getPosition?.() || position);
 };
 
 const copyText = async (value?: string) => {
@@ -386,9 +427,11 @@ onUnmounted(() => {
 
 <style scoped>
 .customer-discovery-page {
-  min-height: calc(100vh - 84px);
-  padding: 16px;
+  height: calc(100vh - 84px);
+  min-height: 560px;
+  padding: 12px 16px;
   background: #f5f7fa;
+  overflow: hidden;
 }
 
 .discovery-toolbar {
@@ -396,7 +439,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 12px;
+  height: 48px;
+  margin-bottom: 10px;
 }
 
 .discovery-toolbar h2 {
@@ -416,7 +460,8 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 360px minmax(0, 1fr);
   gap: 14px;
-  min-height: calc(100vh - 156px);
+  height: calc(100% - 58px);
+  min-height: 0;
 }
 
 .discovery-side,
@@ -511,6 +556,7 @@ onUnmounted(() => {
 .map-workspace {
   position: relative;
   overflow: hidden;
+  min-height: 0;
 }
 
 .map-alert {
@@ -524,7 +570,7 @@ onUnmounted(() => {
 .discovery-map {
   width: 100%;
   height: 100%;
-  min-height: 640px;
+  min-height: 0;
 }
 
 .place-inspector {
@@ -567,6 +613,24 @@ onUnmounted(() => {
   color: #303133;
   font-size: 12px;
   box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
+}
+
+:deep(.discovery-info-window) {
+  display: grid;
+  gap: 4px;
+  min-width: 220px;
+  color: #303133;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+:deep(.discovery-info-window strong) {
+  color: #0f766e;
+  font-size: 14px;
+}
+
+:deep(.discovery-info-window span) {
+  color: #606266;
 }
 
 @media (max-width: 1180px) {

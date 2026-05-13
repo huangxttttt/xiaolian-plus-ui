@@ -23,6 +23,7 @@ export interface CustomerOrderVO {
   deliveryStatus?: string;
   customerId?: string | number;
   customerName?: string;
+  customerAlias?: string;
   customerPhone?: string;
   totalAmount?: number;
   receivedAmount?: number;

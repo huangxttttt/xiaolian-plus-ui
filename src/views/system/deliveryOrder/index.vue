@@ -143,7 +143,7 @@
               </el-col>
               <el-col :span="12">
                 <el-form-item label="配送地" prop="routeId">
-                  <el-select v-model="form.routeId" placeholder="请选择配送地" filterable style="width: 100%" @change="handleRouteChange">
+                  <el-select v-model="activeRouteId" placeholder="请选择配送地" filterable style="width: 100%" @change="handleRouteChange">
                     <el-option v-for="item in routeOptions" :key="item.routeId" :label="item.routeName" :value="item.routeId" />
                   </el-select>
                 </el-form-item>
@@ -166,6 +166,7 @@
             <div class="route-map-panel">
               <div class="route-map-summary">
                 <span>{{ selectedRouteName || '请选择配送地' }}</span>
+                <span v-if="primaryRouteName && primaryRouteName !== selectedRouteName">主配送地：{{ primaryRouteName }}</span>
                 <span>已定位 {{ routeMapCustomers.length }} 个客户</span>
                 <span v-if="routeMapCustomers.length">已智能排序</span>
                 <span v-if="routeMapMissingCount">未定位 {{ routeMapMissingCount }} 个客户</span>
@@ -216,7 +217,7 @@
                 v-model="selectedCustomerId"
                 placeholder="选择客户后自动添加"
                 filterable
-                :disabled="!form.routeId"
+                :disabled="!activeRouteId"
                 style="width: 260px"
                 @change="addCustomerOrder"
               >
@@ -230,6 +231,7 @@
                 <el-collapse-item v-for="(order, orderIndex) in form.customerOrders" :key="order.customerId" :name="String(order.customerId)">
                   <template #title>
                     <span class="font-medium">{{ order.customerName }}</span>
+                    <span v-if="order.routeName" class="ml-3 text-gray-500">{{ order.routeName }}</span>
                     <span v-if="order.customerPhone" class="ml-3 text-gray-500">{{ order.customerPhone }}</span>
                     <span class="ml-3 text-gray-500">小计：{{ calcOrderTotal(order).toFixed(2) }}</span>
                   </template>
@@ -309,6 +311,8 @@
         <el-collapse-item v-for="order in detailData.customerOrders" :key="order.orderId" :name="String(order.orderId)">
           <template #title>
             <span class="font-medium">{{ order.customerName }}</span>
+            <span v-if="order.customerAlias" class="ml-3 text-gray-500">简称：{{ order.customerAlias }}</span>
+            <span v-if="order.routeName" class="ml-3 text-gray-500">配送地：{{ order.routeName }}</span>
             <span v-if="order.customerPhone" class="ml-3 text-gray-500">{{ order.customerPhone }}</span>
             <span class="ml-3 text-gray-500">小计：{{ formatAmount(order.totalAmount) }}</span>
             <span v-if="detailData?.status === '已归档'" class="ml-3 text-gray-500">实收：{{ formatAmount(order.receivedAmount) }}</span>
@@ -438,6 +442,7 @@ const customerOptions = ref<CustomerVO[]>([]);
 const routeCustomerOrderStats = ref<RouteCustomerOrderStatsVO[]>([]);
 const productOptions = ref<ProductVO[]>([]);
 const selectedCustomerId = ref<string | number>();
+const activeRouteId = ref<string | number>();
 const activeCustomerOrderNames = ref<string[]>([]);
 const buttonLoading = ref(false);
 const loading = ref(true);
@@ -528,7 +533,8 @@ const { queryParams, form, rules } = toRefs(data);
 
 const selectedHasArchived = computed(() => selectedRows.value.some((item) => item.status === '已归档'));
 
-const selectedRouteName = computed(() => routeOptions.value.find((item) => item.routeId === form.value.routeId)?.routeName);
+const selectedRouteName = computed(() => routeOptions.value.find((item) => item.routeId === activeRouteId.value)?.routeName);
+const primaryRouteName = computed(() => routeOptions.value.find((item) => item.routeId === form.value.routeId)?.routeName);
 
 const getPointDistance = (from: Pick<RouteStartPoint, 'longitude' | 'latitude'>, to: Pick<RouteStartPoint, 'longitude' | 'latitude'>) => {
   const toRad = (value: number) => (value * Math.PI) / 180;
@@ -736,10 +742,11 @@ const getList = async () => {
 };
 
 const handleRouteChange = async () => {
-  form.value.customerOrders = [];
+  if (!form.value.routeId || !form.value.customerOrders.length) {
+    form.value.routeId = activeRouteId.value;
+  }
   selectedCustomerId.value = undefined;
-  activeCustomerOrderNames.value = [];
-  await getCustomersByRoute(form.value.routeId);
+  await getCustomersByRoute(activeRouteId.value);
 };
 
 const cancel = () => {
@@ -749,6 +756,7 @@ const cancel = () => {
 
 const reset = () => {
   form.value = { ...initFormData, customerOrders: [] };
+  activeRouteId.value = undefined;
   selectedCustomerId.value = undefined;
   activeCustomerOrderNames.value = [];
   customerOptions.value = [];
@@ -799,10 +807,11 @@ const handleUpdate = async (row?: DeliveryOrderVO) => {
   const res = await getDeliveryOrder(_deliveryId);
   Object.assign(form.value, res.data);
   form.value.customerOrders = res.data.customerOrders || [];
+  activeRouteId.value = form.value.routeId;
   activeCustomerOrderNames.value = form.value.customerOrders[0]?.customerId ? [String(form.value.customerOrders[0].customerId)] : [];
   dialog.visible = true;
   dialog.title = '修改配货装车单';
-  await getCustomersByRoute(form.value.routeId);
+  await getCustomersByRoute(activeRouteId.value);
 };
 
 const loadAmap = async () => {
@@ -1101,6 +1110,7 @@ const addCustomerOrder = (customerId?: string | number) => {
     customerId: customer.customerId,
     customerName: customer.name,
     customerPhone: customer.phone,
+    routeName: customer.routeName,
     items: [createEmptyItem()]
   };
   form.value.customerOrders.push(order);
