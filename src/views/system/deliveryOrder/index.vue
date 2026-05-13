@@ -1444,11 +1444,14 @@ watch(
   overflow: hidden;
   transition:
     border-color 0.15s ease,
-    background-color 0.15s ease;
+    background-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 
 .route-customer-item:hover {
-  border-color: #409eff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+  transform: translateY(-1px);
 }
 
 .route-customer-item.is-low-share {

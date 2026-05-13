@@ -84,8 +84,8 @@
 </template>
 
 <script setup name="CustomerDiscovery" lang="ts">
-import { listCustomer } from '@/api/system/customer';
-import { CustomerVO } from '@/api/system/customer/types';
+import { getRouteCustomerOrderStats, listCustomer } from '@/api/system/customer';
+import { CustomerVO, RouteCustomerOrderStatsVO } from '@/api/system/customer/types';
 import { listRouteOptions } from '@/api/system/route';
 import { RouteVO } from '@/api/system/route/types';
 
@@ -126,6 +126,7 @@ const searchForm = reactive({
 });
 const routeOptions = ref<RouteVO[]>([]);
 const customerOptions = ref<CustomerVO[]>([]);
+const routeCustomerOrderStats = ref<RouteCustomerOrderStatsVO[]>([]);
 const discoveredPlaces = ref<DiscoveredPlace[]>([]);
 const activePlace = ref<DiscoveredPlace>();
 const mapContainerRef = ref<HTMLDivElement>();
@@ -138,8 +139,17 @@ let placeMarkers: any[] = [];
 let placeMarkerMap = new Map<string, any>();
 let centerMarker: any;
 let activeInfoWindow: any;
+const centerMarkerLabel = ref('搜索中心');
 
 const selectedRouteName = computed(() => routeOptions.value.find((item) => item.routeId === searchForm.routeId)?.routeName || '');
+
+const routeCustomerOrderStatsMap = computed(() => {
+  const map = new Map<string | number, RouteCustomerOrderStatsVO>();
+  routeCustomerOrderStats.value.forEach((item) => map.set(item.customerId, item));
+  return map;
+});
+
+const selectedRouteCustomers = computed(() => customerOptions.value.filter((customer) => String(customer.routeId) === String(searchForm.routeId)));
 
 const existingCustomerKeys = computed(() => {
   const keys = new Set<string>();
@@ -159,6 +169,15 @@ const isExistingCustomer = (place: Pick<DiscoveredPlace, 'name' | 'tel'>) => {
   const name = normalizeText(place.name);
   const tel = normalizeText(place.tel);
   return (!!name && existingCustomerKeys.value.has(name)) || (!!tel && existingCustomerKeys.value.has(tel));
+};
+
+const hasCustomerLocation = (customer: Pick<CustomerVO, 'longitude' | 'latitude'>) => {
+  if (customer.longitude === null || customer.longitude === undefined || customer.latitude === null || customer.latitude === undefined) {
+    return false;
+  }
+  const longitude = Number(customer.longitude);
+  const latitude = Number(customer.latitude);
+  return Number.isFinite(longitude) && Number.isFinite(latitude) && longitude >= -180 && longitude <= 180 && latitude >= -90 && latitude <= 90;
 };
 
 const loadAmapBase = async () => {
@@ -246,6 +265,37 @@ const geocodeRouteCenter = async () => {
   });
 };
 
+const loadRouteCustomerStats = async () => {
+  if (!searchForm.routeId) {
+    routeCustomerOrderStats.value = [];
+    return;
+  }
+  try {
+    const res = await getRouteCustomerOrderStats(searchForm.routeId);
+    routeCustomerOrderStats.value = res.data || [];
+  } catch {
+    routeCustomerOrderStats.value = [];
+  }
+};
+
+const resolveRouteCenter = async () => {
+  await loadRouteCustomerStats();
+  const centerCustomer = selectedRouteCustomers.value
+    .filter(hasCustomerLocation)
+    .map((customer) => ({
+      customer,
+      orderCount: Number(routeCustomerOrderStatsMap.value.get(customer.customerId)?.orderCount || 0)
+    }))
+    .sort((a, b) => b.orderCount - a.orderCount)[0]?.customer;
+
+  if (centerCustomer) {
+    centerMarkerLabel.value = `${selectedRouteName.value} · ${centerCustomer.name}`;
+    return [Number(centerCustomer.longitude), Number(centerCustomer.latitude)];
+  }
+  centerMarkerLabel.value = selectedRouteName.value ? `${selectedRouteName.value} · 路线中心` : '搜索中心';
+  return geocodeRouteCenter();
+};
+
 const clearMarkers = () => {
   if (!mapInstance) return;
   activeInfoWindow?.close();
@@ -283,11 +333,12 @@ const renderMarkers = async (center: number[]) => {
   const AMap = await loadAmap();
   if (!mapInstance) return;
   clearMarkers();
+  const label = centerMarkerLabel.value || selectedRouteName.value || '搜索中心';
   centerMarker = new AMap.Marker({
     position: center,
-    title: selectedRouteName.value || '搜索中心',
+    title: label,
     label: {
-      content: selectedRouteName.value || '搜索中心',
+      content: label,
       direction: 'top'
     }
   });
@@ -345,7 +396,7 @@ const searchPlaces = async () => {
   mapLoading.value = true;
   try {
     await initMap();
-    const center = await geocodeRouteCenter();
+    const center = await resolveRouteCenter();
     discoveredPlaces.value = await new Promise<DiscoveredPlace[]>((resolve, reject) => {
       placeSearchInstance.searchNearBy(searchForm.keyword.trim(), center, searchForm.radius, (status: string, result: any) => {
         if (status !== 'complete' && status !== 'no_data') {
@@ -371,10 +422,19 @@ const quickSearch = (keyword: string) => {
   searchPlaces();
 };
 
-const handleRouteChange = () => {
+const handleRouteChange = async () => {
   discoveredPlaces.value = [];
   activePlace.value = undefined;
-  clearMarkers();
+  mapLoading.value = true;
+  try {
+    await initMap();
+    const center = await resolveRouteCenter();
+    await renderMarkers(center);
+  } catch (error) {
+    proxy?.$modal.msgError((error as Error).message || '路线定位失败');
+  } finally {
+    mapLoading.value = false;
+  }
 };
 
 const focusPlace = async (place: DiscoveredPlace) => {
@@ -414,6 +474,9 @@ const getCustomerOptions = async () => {
 onMounted(async () => {
   await Promise.all([getRouteOptions(), getCustomerOptions()]);
   await initMap();
+  if (searchForm.routeId) {
+    await handleRouteChange();
+  }
 });
 
 onUnmounted(() => {
