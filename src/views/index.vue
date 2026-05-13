@@ -274,6 +274,7 @@
                 <span>{{ delivery.deliveryDate }}</span>
                 <el-tag size="small" :type="delivery.status === '已归档' ? 'success' : 'warning'">{{ delivery.status }}</el-tag>
                 <span>{{ delivery.customerOrders?.length || 0 }} 户</span>
+                <span>涉及配送地 {{ deliveryRouteNames(delivery) }}</span>
                 <span>合计 {{ money(delivery.totalAmount) }}</span>
                 <span class="today-title-spacer"></span>
                 <el-button
@@ -311,6 +312,9 @@
                 </template>
               </el-table-column>
               <el-table-column label="客户名称" prop="customerName" min-width="150" />
+              <el-table-column label="配送地" prop="routeName" width="110">
+                <template #default="scope">{{ scope.row.routeName || delivery.routeName || '-' }}</template>
+              </el-table-column>
               <el-table-column label="联系电话" prop="customerPhone" width="140" />
               <el-table-column label="商品数" width="90" align="center">
                 <template #default="scope">{{ customerOrderItemCount(scope.row) }}</template>
@@ -519,6 +523,13 @@ const productRankTotal = computed(() => summary.productRanks.reduce((sum, item) 
 const rankColor = (index: number) => palette[index % palette.length];
 const profitClass = (value?: number) => (Number(value || 0) < 0 ? 'is-loss' : 'is-profit');
 const customerOrderItemCount = (order: CustomerOrderVO) => order.items?.length || 0;
+const deliveryRouteNames = (delivery: DeliveryOrderVO) => {
+  const names = Array.from(new Set((delivery.customerOrders || []).map((order) => order.routeName).filter(Boolean)));
+  if (!names.length) {
+    return delivery.routeName || '-';
+  }
+  return names.join('、');
+};
 
 const getCurrentDate = () => {
   const date = new Date();
