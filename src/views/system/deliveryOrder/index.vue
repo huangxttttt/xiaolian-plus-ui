@@ -617,7 +617,12 @@ const routeCustomersWithStats = computed<RouteCustomerWithStats[]>(() =>
 );
 
 const hasCustomerLocation = (customer: Pick<CustomerVO, 'longitude' | 'latitude'>) => {
-  return Number.isFinite(Number(customer.longitude)) && Number.isFinite(Number(customer.latitude));
+  if (customer.longitude === null || customer.longitude === undefined || customer.latitude === null || customer.latitude === undefined) {
+    return false;
+  }
+  const longitude = Number(customer.longitude);
+  const latitude = Number(customer.latitude);
+  return Number.isFinite(longitude) && Number.isFinite(latitude) && longitude >= -180 && longitude <= 180 && latitude >= -90 && latitude <= 90;
 };
 
 const routeMapCustomers = computed(() =>
@@ -906,29 +911,37 @@ const renderDrivingRoute = (AMap: any, points: number[][]) => {
   if (routeMapDriving) {
     routeMapDriving.clear();
   }
+  const origin = [routeStartPoint.value.longitude, routeStartPoint.value.latitude];
+  routeMapPolyline = new AMap.Polyline({
+    path: [origin, ...points],
+    strokeColor: '#16a34a',
+    strokeWeight: 4,
+    strokeOpacity: 0.85,
+    lineJoin: 'round',
+    zIndex: 50
+  });
+  routeMapInstance.add(routeMapPolyline);
   routeMapDriving = new AMap.Driving({
     map: routeMapInstance,
     hideMarkers: true,
-    autoFitView: false
+    autoFitView: false,
+    showTraffic: false
   });
-  const origin = [routeStartPoint.value.longitude, routeStartPoint.value.latitude];
   const destination = points[points.length - 1];
   const waypoints = points.slice(0, -1);
   routeMapDriving.search(origin, destination, { waypoints }, (status: string, result: any) => {
     if (status !== 'complete') {
-      routeMapPolyline = new AMap.Polyline({
-        path: [origin, ...points],
-        strokeColor: '#1677ff',
-        strokeWeight: 4,
-        strokeOpacity: 0.9,
-        lineJoin: 'round'
-      });
-      routeMapInstance.add(routeMapPolyline);
+      routePlanDistance.value = `直线约 ${formatRouteDistance(calcRouteDistance(routeMapCustomers.value))}`;
+      routePlanDuration.value = '驾车规划失败';
       return;
     }
     const route = result?.routes?.[0];
     routePlanDistance.value = formatRouteDistance(route?.distance);
     routePlanDuration.value = formatRouteDuration(route?.time);
+    if (routeMapPolyline) {
+      routeMapInstance.remove(routeMapPolyline);
+      routeMapPolyline = undefined;
+    }
   });
 };
 
