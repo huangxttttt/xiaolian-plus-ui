@@ -181,18 +181,21 @@
                 title="请先在 .env 中配置 VITE_APP_AMAP_KEY，配置后可展示客户路线图"
               />
               <div ref="routeMapContainerRef" v-loading="routeMapLoading" class="route-map"></div>
-              <div v-if="routeMapCustomers.length" class="route-customer-list">
+              <div v-if="routeMapDisplayCustomers.length" class="route-customer-list">
                 <div
-                  v-for="(customer, index) in routeMapCustomers"
+                  v-for="(customer, index) in routeMapDisplayCustomers"
                   :key="customer.customerId"
                   class="route-customer-item"
-                  :class="{ 'is-low-share': customer.orderSharePercentage < 10 }"
+                  :class="{ 'is-low-share': customer.orderSharePercentage < 10, 'is-missing-location': !hasCustomerLocation(customer) }"
                   :style="getRouteCustomerShareStyle(customer.orderSharePercentage)"
                   @click="focusRouteCustomer(customer)"
                 >
                   <span class="route-customer-share-bg">{{ formatRouteCustomerShare(customer.orderSharePercentage) }}</span>
                   <span class="route-customer-index">{{ index + 1 }}</span>
                   <span class="route-customer-name">{{ customer.name }}</span>
+                  <el-tag v-if="!hasCustomerLocation(customer)" class="route-customer-location-tag" size="small" type="danger" effect="plain"
+                    >无位置</el-tag
+                  >
                   <span class="route-customer-share" :title="`该配送地订单占比：${formatRouteCustomerShare(customer.orderSharePercentage)}`">
                     {{ customer.orderCount }}单
                   </span>
@@ -613,19 +616,25 @@ const routeCustomersWithStats = computed<RouteCustomerWithStats[]>(() =>
   })
 );
 
+const hasCustomerLocation = (customer: Pick<CustomerVO, 'longitude' | 'latitude'>) => {
+  return Number.isFinite(Number(customer.longitude)) && Number.isFinite(Number(customer.latitude));
+};
+
 const routeMapCustomers = computed(() =>
   optimizeRouteCustomers(
-    routeCustomersWithStats.value
-      .filter((item) => item.longitude && item.latitude)
-      .map((item) => ({
-        ...item,
-        longitude: Number(item.longitude),
-        latitude: Number(item.latitude)
-      }))
+    routeCustomersWithStats.value.filter(hasCustomerLocation).map((item) => ({
+      ...item,
+      longitude: Number(item.longitude),
+      latitude: Number(item.latitude)
+    }))
   )
 );
 
-const routeMapMissingCount = computed(() => customerOptions.value.length - routeMapCustomers.value.length);
+const routeMapMissingCustomers = computed(() => routeCustomersWithStats.value.filter((item) => !hasCustomerLocation(item)));
+
+const routeMapDisplayCustomers = computed(() => [...routeMapCustomers.value, ...routeMapMissingCustomers.value]);
+
+const routeMapMissingCount = computed(() => routeMapMissingCustomers.value.length);
 
 const productMap = computed(() => {
   const map = new Map<string | number, ProductVO>();
@@ -930,7 +939,7 @@ const openRouteCustomerInfo = (AMap: any, customer: CustomerVO, marker: any) => 
 };
 
 const focusRouteCustomer = async (customer: CustomerVO) => {
-  if (!customer.longitude || !customer.latitude || !routeMapContainerRef.value || !amapKey) {
+  if (!hasCustomerLocation(customer) || !routeMapContainerRef.value || !amapKey) {
     return;
   }
   try {
@@ -1449,6 +1458,11 @@ watch(
   border-color: #fde2e2;
 }
 
+.route-customer-item.is-missing-location {
+  border-color: #f56c6c;
+  cursor: default;
+}
+
 .route-customer-share-bg {
   position: absolute;
   right: 38px;
@@ -1488,6 +1502,13 @@ watch(
   color: #606266;
   font-size: 12px;
   white-space: nowrap;
+}
+
+.route-customer-location-tag {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  margin-left: 6px;
 }
 
 :deep(.amap-marker-label) {
