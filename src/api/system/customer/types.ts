@@ -209,27 +209,27 @@ export interface CustomerForm extends BaseEntity {
   /**
    * 地图定位
    */
-  mapLocation?: string;
+  mapLocation?: string | null;
 
   /**
    * 地图经度
    */
-  longitude?: number;
+  longitude?: number | null;
 
   /**
    * 地图纬度
    */
-  latitude?: number;
+  latitude?: number | null;
 
   /**
    * 地图解析地址
    */
-  mapAddress?: string;
+  mapAddress?: string | null;
 
   /**
    * 地图服务商
    */
-  mapProvider?: string;
+  mapProvider?: string | null;
 
   /**
    * 门面照片

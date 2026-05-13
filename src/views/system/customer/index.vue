@@ -750,11 +750,11 @@ const searchMapKeyword = async () => {
 };
 
 const clearMapLocation = () => {
-  form.value.longitude = undefined;
-  form.value.latitude = undefined;
-  form.value.mapAddress = undefined;
-  form.value.mapLocation = undefined;
-  form.value.mapProvider = undefined;
+  form.value.longitude = null;
+  form.value.latitude = null;
+  form.value.mapAddress = null;
+  form.value.mapLocation = null;
+  form.value.mapProvider = null;
   mapDialog.visible = false;
 };
 
