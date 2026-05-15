@@ -277,17 +277,38 @@
                     <el-table-column label="规格" prop="specification" width="120" />
                     <el-table-column label="数量" width="130">
                       <template #default="{ row }">
-                        <el-input-number v-model="row.quantity" :precision="2" :min="0.01" controls-position="right" style="width: 110px" />
+                        <el-input-number
+                          v-model="row.quantity"
+                          :precision="2"
+                          :min="0.01"
+                          controls-position="right"
+                          style="width: 110px"
+                          @focus="selectNumberInput"
+                        />
                       </template>
                     </el-table-column>
                     <el-table-column label="销售价" width="130">
                       <template #default="{ row }">
-                        <el-input-number v-model="row.salePrice" :precision="2" :min="0" controls-position="right" style="width: 110px" />
+                        <el-input-number
+                          v-model="row.salePrice"
+                          :precision="2"
+                          :min="0"
+                          controls-position="right"
+                          style="width: 110px"
+                          @focus="selectNumberInput"
+                        />
                       </template>
                     </el-table-column>
                     <el-table-column label="成本价" width="130">
                       <template #default="{ row }">
-                        <el-input-number v-model="row.costPrice" :precision="2" :min="0" controls-position="right" style="width: 110px" />
+                        <el-input-number
+                          v-model="row.costPrice"
+                          :precision="2"
+                          :min="0"
+                          controls-position="right"
+                          style="width: 110px"
+                          @focus="selectNumberInput"
+                        />
                       </template>
                     </el-table-column>
                     <el-table-column label="金额" width="120">
@@ -1292,6 +1313,11 @@ const calcDeliveryTotal = () => {
 
 const formatAmount = (value?: number) => {
   return Number(value || 0).toFixed(2);
+};
+
+const selectNumberInput = (event: FocusEvent) => {
+  const input = event.target as HTMLInputElement | null;
+  input?.select();
 };
 
 const formatRouteCustomerShare = (value?: number) => {
