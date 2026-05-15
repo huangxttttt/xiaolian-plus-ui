@@ -275,7 +275,6 @@
                       </template>
                     </el-table-column>
                     <el-table-column label="规格" prop="specification" width="120" />
-                    <el-table-column label="提供商" prop="supplier" width="140" />
                     <el-table-column label="数量" width="130">
                       <template #default="{ row }">
                         <el-input-number v-model="row.quantity" :precision="2" :min="0.01" controls-position="right" style="width: 110px" />
