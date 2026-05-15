@@ -2,6 +2,7 @@ export interface ProductVO extends BaseEntity {
   productId: string | number;
   categoryId: string | number;
   categoryName: string;
+  unit: string;
   productName: string;
   specification: string;
   supplier: string;

@@ -337,6 +337,13 @@ const renderMarkers = async (center: number[]) => {
   centerMarker = new AMap.Marker({
     position: center,
     title: label,
+    icon: new AMap.Icon({
+      size: new AMap.Size(26, 34),
+      image: '//a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-red.png',
+      imageSize: new AMap.Size(26, 34)
+    }),
+    offset: new AMap.Pixel(-13, -34),
+    zIndex: 130,
     label: {
       content: label,
       direction: 'top'

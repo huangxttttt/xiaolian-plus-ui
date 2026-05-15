@@ -8,6 +8,7 @@ export interface DeliveryOrderItemVO {
   productName?: string;
   specification?: string;
   supplier?: string;
+  unit?: string;
   quantity?: number;
   salePrice?: number;
   costPrice?: number;
@@ -25,6 +26,7 @@ export interface CustomerOrderVO {
   customerName?: string;
   customerAlias?: string;
   customerPhone?: string;
+  previousDebtAmount?: number;
   totalAmount?: number;
   receivedAmount?: number;
   unpaidAmount?: number;

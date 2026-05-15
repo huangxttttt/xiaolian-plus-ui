@@ -83,6 +83,11 @@
               <td class="center">{{ item.source ? trimAmount(item.source.salePrice) : '' }}</td>
               <td class="center">{{ item.source ? trimAmount(item.source.amount ?? calcItemAmount(item.source)) : '' }}</td>
             </tr>
+            <tr v-if="page.isLast && getOrderDebtAmount(page.order) > 0" class="total-row">
+              <td>欠款</td>
+              <td colspan="5">带入历史欠款</td>
+              <td class="center">{{ trimAmount(getOrderDebtAmount(page.order)) }}</td>
+            </tr>
             <tr v-if="page.isLast" class="total-row">
               <td>金额合计</td>
               <td>（大写）</td>
@@ -216,6 +221,7 @@ const rowNumber = (index: number) => {
 };
 
 const unitName = (item: DeliveryOrderItemVO) => {
+  if (item.unit) return item.unit;
   const name = item.productName || '';
   if (name.includes('油')) return '桶';
   if (name.includes('米') || name.includes('糖')) return '袋';
@@ -291,8 +297,10 @@ const amountInChinese = (value?: number) => {
 
 const calcItemAmount = (item: DeliveryOrderItemVO) => Number(item.quantity || 0) * Number(item.salePrice || 0);
 
+const getOrderDebtAmount = (order: CustomerOrderVO) => Number(order.previousDebtAmount || 0);
+
 const calcOrderTotal = (order: CustomerOrderVO) => {
-  return order.items?.reduce((sum, item) => sum + Number(item.amount ?? calcItemAmount(item)), 0) || 0;
+  return (order.items?.reduce((sum, item) => sum + Number(item.amount ?? calcItemAmount(item)), 0) || 0) + getOrderDebtAmount(order);
 };
 
 const escapeHtml = (value?: string | number) => {
@@ -342,6 +350,17 @@ const renderPrintRows = (page: PrintablePage) => {
     })
     .join('');
 
+  const debtRow =
+    page.isLast && getOrderDebtAmount(page.order) > 0
+      ? `
+      <tr class="total-row">
+        <td>欠款</td>
+        <td colspan="5">带入历史欠款</td>
+        <td class="center">${escapeHtml(trimAmount(getOrderDebtAmount(page.order)))}</td>
+      </tr>
+    `
+      : '';
+
   const totalRow = page.isLast
     ? `
       <tr class="total-row">
@@ -359,7 +378,7 @@ const renderPrintRows = (page: PrintablePage) => {
       </tr>
     `;
 
-  return `${rows}${totalRow}`;
+  return `${rows}${debtRow}${totalRow}`;
 };
 
 const renderPrintPage = (page: PrintablePage) => {

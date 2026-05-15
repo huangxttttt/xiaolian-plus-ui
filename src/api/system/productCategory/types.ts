@@ -1,6 +1,7 @@
 export interface ProductCategoryVO extends BaseEntity {
   categoryId: string | number;
   categoryName: string;
+  unit: string;
   categorySort: number;
   remark: string;
 }
@@ -8,6 +9,7 @@ export interface ProductCategoryVO extends BaseEntity {
 export interface ProductCategoryForm extends BaseEntity {
   categoryId?: string | number;
   categoryName?: string;
+  unit?: string;
   categorySort?: number;
   remark?: string;
 }

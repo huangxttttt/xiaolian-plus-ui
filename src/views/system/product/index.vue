@@ -54,6 +54,7 @@
         <el-table-column type="selection" width="55" align="center" />
         <el-table-column label="商品名称" align="center" prop="productName" min-width="140" />
         <el-table-column label="商品大类" align="center" prop="categoryName" min-width="120" />
+        <el-table-column label="单位" align="center" prop="unit" width="90" />
         <el-table-column label="商品规格" align="center" prop="specification" min-width="120" />
         <el-table-column label="商品提供商" align="center" prop="supplier" min-width="140" />
         <el-table-column label="最近销售金额" align="center" prop="latestSaleAmount" width="130" />
@@ -62,7 +63,13 @@
         <el-table-column label="操作" align="center" width="150" class-name="small-padding fixed-width">
           <template #default="scope">
             <el-tooltip content="价格走势" placement="top">
-              <el-button link type="primary" icon="TrendCharts" @click="handlePriceTrend(scope.row)" v-hasPermi="['system:product:query']"></el-button>
+              <el-button
+                link
+                type="primary"
+                icon="TrendCharts"
+                @click="handlePriceTrend(scope.row)"
+                v-hasPermi="['system:product:query']"
+              ></el-button>
             </el-tooltip>
             <el-tooltip content="修改" placement="top">
               <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:product:edit']"></el-button>
@@ -74,13 +81,7 @@
         </el-table-column>
       </el-table>
 
-      <pagination
-        v-show="total > 0"
-        :total="total"
-        v-model:page="queryParams.pageNum"
-        v-model:limit="queryParams.pageSize"
-        @pagination="getList"
-      />
+      <pagination v-show="total > 0" :total="total" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize" @pagination="getList" />
     </el-card>
 
     <el-dialog :title="dialog.title" v-model="dialog.visible" width="560px" append-to-body>
@@ -123,6 +124,7 @@
         <el-descriptions-item label="商品规格">{{ priceProduct.specification }}</el-descriptions-item>
         <el-descriptions-item label="提供商">{{ priceProduct.supplier }}</el-descriptions-item>
         <el-descriptions-item label="商品大类">{{ priceProduct.categoryName }}</el-descriptions-item>
+        <el-descriptions-item label="单位">{{ priceProduct.unit }}</el-descriptions-item>
       </el-descriptions>
 
       <el-form class="mt-3" :inline="true">

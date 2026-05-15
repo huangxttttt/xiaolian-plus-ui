@@ -232,8 +232,29 @@
                   <div class="mb8">
                     <el-button type="primary" plain icon="Plus" @click="addItem(order)">添加商品</el-button>
                     <el-button type="success" plain icon="ShoppingCart" @click="addTopProducts(order)">添加常购商品</el-button>
+                    <el-button
+                      v-if="!getOrderDebtAmount(order)"
+                      type="warning"
+                      plain
+                      icon="Coin"
+                      :disabled="getCustomerDebt(order) <= 0"
+                      @click="addCustomerDebt(order)"
+                    >
+                      添加欠款{{ getCustomerDebt(order) > 0 ? ` ${formatAmount(getCustomerDebt(order))}` : '' }}
+                    </el-button>
+                    <el-button v-else type="warning" plain icon="Close" @click="removeCustomerDebt(order)">
+                      移除欠款 {{ formatAmount(getOrderDebtAmount(order)) }}
+                    </el-button>
                     <el-button type="danger" plain icon="Delete" @click="removeCustomerOrder(orderIndex)">移除客户</el-button>
                   </div>
+                  <el-alert
+                    v-if="getOrderDebtAmount(order)"
+                    class="mb8"
+                    type="warning"
+                    show-icon
+                    :closable="false"
+                    :title="`已带入该客户欠款 ${formatAmount(getOrderDebtAmount(order))}，会计入本客户小计和整车合计`"
+                  />
                   <el-table border :data="order.items">
                     <el-table-column label="商品" min-width="180">
                       <template #default="{ row }">
@@ -308,6 +329,7 @@
             <span v-if="order.customerAlias" class="ml-3 text-gray-500">简称：{{ order.customerAlias }}</span>
             <span v-if="order.routeName" class="ml-3 text-gray-500">配送地：{{ order.routeName }}</span>
             <span v-if="order.customerPhone" class="ml-3 text-gray-500">{{ order.customerPhone }}</span>
+            <span v-if="order.previousDebtAmount" class="ml-3 text-gray-500">带入欠款：{{ formatAmount(order.previousDebtAmount) }}</span>
             <span class="ml-3 text-gray-500">小计：{{ formatAmount(order.totalAmount) }}</span>
             <span v-if="detailData?.status === '已归档'" class="ml-3 text-gray-500">实收：{{ formatAmount(order.receivedAmount) }}</span>
             <span v-if="detailData?.status === '已归档'" class="ml-3 text-gray-500">未收：{{ formatAmount(order.unpaidAmount) }}</span>
@@ -345,6 +367,9 @@
       <el-table border :data="archiveReceipts">
         <el-table-column label="客户" prop="customerName" min-width="150" />
         <el-table-column label="联系电话" prop="customerPhone" width="140" />
+        <el-table-column label="带入欠款" width="120">
+          <template #default="{ row }">{{ formatAmount(row.previousDebtAmount) }}</template>
+        </el-table-column>
         <el-table-column label="订单金额" width="120">
           <template #default="{ row }">{{ formatAmount(row.totalAmount) }}</template>
         </el-table-column>
@@ -474,6 +499,7 @@ interface ArchiveReceiptRow {
   orderId: string | number;
   customerName?: string;
   customerPhone?: string;
+  previousDebtAmount?: number;
   totalAmount?: number;
   receivedAmount: number;
 }
@@ -1045,6 +1071,7 @@ const handleArchive = async (row: DeliveryOrderVO) => {
     orderId: order.orderId!,
     customerName: order.customerName,
     customerPhone: order.customerPhone,
+    previousDebtAmount: Number(order.previousDebtAmount || 0),
     totalAmount: Number(order.totalAmount || 0),
     receivedAmount: 0
   }));
@@ -1116,6 +1143,7 @@ const addCustomerOrder = (customerId?: string | number) => {
     customerName: customer.name,
     customerPhone: customer.phone,
     routeName: customer.routeName,
+    previousDebtAmount: 0,
     items: [createEmptyItem()]
   };
   form.value.customerOrders.push(order);
@@ -1150,6 +1178,7 @@ const createItemFromProduct = (product: ProductVO): DeliveryOrderItemVO => ({
   productName: product.productName,
   specification: product.specification,
   supplier: product.supplier,
+  unit: product.unit,
   quantity: 1,
   salePrice: product.latestSaleAmount || 0,
   costPrice: product.latestCostPrice || 0
@@ -1192,6 +1221,26 @@ const addTopProducts = async (order: CustomerOrderVO) => {
   }
 };
 
+const getCustomerDebt = (order: CustomerOrderVO) => {
+  const customer = customerOptions.value.find((item) => item.customerId === order.customerId);
+  return Number(customer?.debt || 0);
+};
+
+const getOrderDebtAmount = (order: CustomerOrderVO) => Number(order.previousDebtAmount || 0);
+
+const addCustomerDebt = (order: CustomerOrderVO) => {
+  const debt = getCustomerDebt(order);
+  if (debt <= 0) {
+    proxy?.$modal.msgWarning('该客户暂无欠款');
+    return;
+  }
+  order.previousDebtAmount = debt;
+};
+
+const removeCustomerDebt = (order: CustomerOrderVO) => {
+  order.previousDebtAmount = 0;
+};
+
 const getProductPath = (row: DeliveryOrderItemVO) => {
   if (row.productPath?.length) {
     return row.productPath;
@@ -1211,6 +1260,7 @@ const handleProductChange = (row: DeliveryOrderItemVO, value: Array<string | num
     row.categoryId = undefined;
     row.categoryName = undefined;
     row.productId = undefined;
+    row.unit = undefined;
     return;
   }
   row.productPath = value;
@@ -1220,6 +1270,7 @@ const handleProductChange = (row: DeliveryOrderItemVO, value: Array<string | num
   row.productName = product.productName;
   row.specification = product.specification;
   row.supplier = product.supplier;
+  row.unit = product.unit;
   row.salePrice = product.latestSaleAmount || 0;
   row.costPrice = product.latestCostPrice || 0;
 };
@@ -1229,7 +1280,7 @@ const calcItemAmount = (row: DeliveryOrderItemVO) => {
 };
 
 const calcOrderTotal = (order: CustomerOrderVO) => {
-  return order.items.reduce((sum, item) => sum + calcItemAmount(item), 0);
+  return order.items.reduce((sum, item) => sum + calcItemAmount(item), 0) + getOrderDebtAmount(order);
 };
 
 const calcDeliveryTotal = () => {
@@ -1269,13 +1320,16 @@ const normalizeForm = () => {
     ...form.value,
     customerOrders: form.value.customerOrders.map((order) => ({
       customerId: order.customerId,
+      previousDebtAmount: getOrderDebtAmount(order),
       remark: order.remark,
-      items: order.items.map((item) => ({
-        productId: item.productId,
-        quantity: item.quantity,
-        salePrice: item.salePrice,
-        costPrice: item.costPrice
-      }))
+      items: order.items
+        .filter((item) => item.productId)
+        .map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          salePrice: item.salePrice,
+          costPrice: item.costPrice
+        }))
     }))
   };
 };
@@ -1286,11 +1340,12 @@ const validateOrders = () => {
     return false;
   }
   for (const order of form.value.customerOrders) {
-    if (!order.items.length) {
-      proxy?.$modal.msgWarning(`${order.customerName} 未添加商品`);
+    const validItems = order.items.filter((item) => item.productId);
+    if (!validItems.length && getOrderDebtAmount(order) <= 0) {
+      proxy?.$modal.msgWarning(`${order.customerName} 未添加商品或欠款`);
       return false;
     }
-    for (const item of order.items) {
+    for (const item of validItems) {
       if (!item.productId || !item.quantity || item.salePrice === undefined || item.salePrice === null) {
         proxy?.$modal.msgWarning(`${order.customerName} 的商品明细不完整`);
         return false;

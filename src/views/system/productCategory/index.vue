@@ -42,6 +42,7 @@
       <el-table v-loading="loading" border :data="categoryList" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
         <el-table-column label="大类名称" align="center" prop="categoryName" />
+        <el-table-column label="单位" align="center" prop="unit" width="100" />
         <el-table-column label="显示顺序" align="center" prop="categorySort" width="120" />
         <el-table-column label="备注" align="center" prop="remark" />
         <el-table-column label="操作" align="center" width="120" class-name="small-padding fixed-width">
@@ -50,25 +51,30 @@
               <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:productCategory:edit']"></el-button>
             </el-tooltip>
             <el-tooltip content="删除" placement="top">
-              <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['system:productCategory:remove']"></el-button>
+              <el-button
+                link
+                type="primary"
+                icon="Delete"
+                @click="handleDelete(scope.row)"
+                v-hasPermi="['system:productCategory:remove']"
+              ></el-button>
             </el-tooltip>
           </template>
         </el-table-column>
       </el-table>
 
-      <pagination
-        v-show="total > 0"
-        :total="total"
-        v-model:page="queryParams.pageNum"
-        v-model:limit="queryParams.pageSize"
-        @pagination="getList"
-      />
+      <pagination v-show="total > 0" :total="total" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize" @pagination="getList" />
     </el-card>
 
     <el-dialog :title="dialog.title" v-model="dialog.visible" width="500px" append-to-body>
       <el-form ref="categoryFormRef" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="大类名称" prop="categoryName">
           <el-input v-model="form.categoryName" placeholder="请输入大类名称" />
+        </el-form-item>
+        <el-form-item label="单位" prop="unit">
+          <el-select v-model="form.unit" placeholder="请选择单位" filterable style="width: 100%">
+            <el-option v-for="dict in biz_product_unit" :key="dict.value" :label="dict.label" :value="dict.value" />
+          </el-select>
         </el-form-item>
         <el-form-item label="显示顺序" prop="categorySort">
           <el-input-number v-model="form.categorySort" controls-position="right" :min="0" />
@@ -88,16 +94,11 @@
 </template>
 
 <script setup name="ProductCategory" lang="ts">
-import {
-  listProductCategory,
-  getProductCategory,
-  delProductCategory,
-  addProductCategory,
-  updateProductCategory
-} from '@/api/system/productCategory';
+import { listProductCategory, getProductCategory, delProductCategory, addProductCategory, updateProductCategory } from '@/api/system/productCategory';
 import { ProductCategoryVO, ProductCategoryQuery, ProductCategoryForm } from '@/api/system/productCategory/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
+const { biz_product_unit } = toRefs<any>(proxy?.useDict('biz_product_unit'));
 
 const categoryList = ref<ProductCategoryVO[]>([]);
 const buttonLoading = ref(false);
@@ -119,6 +120,7 @@ const dialog = reactive<DialogOption>({
 const initFormData: ProductCategoryForm = {
   categoryId: undefined,
   categoryName: undefined,
+  unit: undefined,
   categorySort: 0,
   remark: undefined
 };
@@ -132,7 +134,8 @@ const data = reactive<PageData<ProductCategoryForm, ProductCategoryQuery>>({
     params: {}
   },
   rules: {
-    categoryName: [{ required: true, message: '大类名称不能为空', trigger: 'blur' }]
+    categoryName: [{ required: true, message: '大类名称不能为空', trigger: 'blur' }],
+    unit: [{ required: true, message: '单位不能为空', trigger: 'blur' }]
   }
 });
 
