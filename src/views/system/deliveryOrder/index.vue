@@ -221,13 +221,17 @@
 
             <div class="delivery-order-scroll">
               <el-empty v-if="!form.customerOrders.length" description="请选择配送地后添加客户订单" />
-              <el-collapse v-else v-model="activeCustomerOrderNames">
+              <el-collapse v-else v-model="activeCustomerOrderNames" class="customer-order-collapse">
                 <el-collapse-item v-for="(order, orderIndex) in form.customerOrders" :key="order.customerId" :name="String(order.customerId)">
                   <template #title>
-                    <span class="font-medium">{{ order.customerName }}</span>
-                    <span v-if="order.routeName" class="ml-3 text-gray-500">{{ order.routeName }}</span>
-                    <span v-if="order.customerPhone" class="ml-3 text-gray-500">{{ order.customerPhone }}</span>
-                    <span class="ml-3 text-gray-500">小计：{{ calcOrderTotal(order).toFixed(2) }}</span>
+                    <div class="customer-order-title">
+                      <div class="customer-order-title-main">
+                        <span class="customer-order-title-name">{{ order.customerName }}</span>
+                        <span v-if="order.routeName" class="customer-order-title-meta">{{ order.routeName }}</span>
+                        <span v-if="order.customerPhone" class="customer-order-title-meta">{{ order.customerPhone }}</span>
+                      </div>
+                      <span class="customer-order-title-total">小计：{{ calcOrderTotal(order).toFixed(2) }}</span>
+                    </div>
                   </template>
                   <div class="mb8">
                     <el-button type="primary" plain icon="Plus" @click="addItem(order)">添加商品</el-button>
@@ -1437,6 +1441,99 @@ watch(
   padding-right: 4px;
 }
 
+.customer-order-collapse {
+  border: 0;
+}
+
+:deep(.customer-order-collapse .el-collapse-item) {
+  margin-bottom: 12px;
+  overflow: hidden;
+  border: 1px solid #dfe6f1;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(31 45 61 / 6%);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+:deep(.customer-order-collapse .el-collapse-item:hover) {
+  border-color: #c7d6ea;
+  box-shadow: 0 6px 16px rgb(31 45 61 / 10%);
+}
+
+:deep(.customer-order-collapse .el-collapse-item.is-active) {
+  border-color: #8bbcff;
+  box-shadow: 0 8px 20px rgb(64 158 255 / 14%);
+}
+
+:deep(.customer-order-collapse .el-collapse-item__header) {
+  min-height: 48px;
+  height: auto;
+  padding: 0 14px;
+  border-bottom: 1px solid #edf1f7;
+  background: linear-gradient(180deg, #f9fbff 0%, #f3f7fc 100%);
+  color: #303133;
+}
+
+:deep(.customer-order-collapse .el-collapse-item.is-active .el-collapse-item__header) {
+  background: linear-gradient(180deg, #f2f8ff 0%, #eaf3ff 100%);
+}
+
+:deep(.customer-order-collapse .el-collapse-item__wrap) {
+  border-bottom: 0;
+  background: #fff;
+}
+
+:deep(.customer-order-collapse .el-collapse-item__content) {
+  padding: 12px 14px 14px;
+}
+
+.customer-order-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  padding-right: 10px;
+  gap: 12px;
+}
+
+.customer-order-title-main {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+}
+
+.customer-order-title-name {
+  max-width: 220px;
+  overflow: hidden;
+  color: #1f2d3d;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.customer-order-title-meta {
+  color: #606266;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.customer-order-title-total {
+  flex: none;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
 .section-title {
   margin-bottom: 10px;
   color: #303133;
@@ -1488,7 +1585,7 @@ watch(
   align-items: stretch;
   column-gap: 6px;
   min-width: 0;
-  min-height: 52px;
+  min-height: 58px;
   padding: 7px 8px;
   border: 1px solid #ebeef5;
   border-radius: 4px;
@@ -1570,8 +1667,9 @@ watch(
   min-width: 0;
   overflow: hidden;
   color: #303133;
-  font-size: 12px;
-  line-height: 17px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
   overflow-wrap: anywhere;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
