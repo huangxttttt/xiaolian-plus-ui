@@ -143,9 +143,32 @@
               </el-col>
               <el-col :span="12">
                 <el-form-item label="配送地" prop="routeId">
-                  <el-select v-model="activeRouteId" placeholder="请选择配送地" filterable style="width: 100%" @change="handleRouteChange">
-                    <el-option v-for="item in routeOptions" :key="item.routeId" :label="item.routeName" :value="item.routeId" />
-                  </el-select>
+                  <div class="delivery-route-field">
+                    <el-select
+                      v-model="quickCustomerId"
+                      placeholder="输入客户名/简称/电话查线路"
+                      filterable
+                      clearable
+                      @change="handleQuickCustomerSelect"
+                      @clear="handleQuickCustomerClear"
+                    >
+                      <el-option
+                        v-for="item in quickCustomerOptions"
+                        :key="item.customerId"
+                        :label="getQuickCustomerLabel(item)"
+                        :value="item.customerId"
+                      >
+                        <div class="quick-customer-option">
+                          <span class="quick-customer-name">{{ item.alias || item.name }}</span>
+                          <span class="quick-customer-route">{{ item.routeName || '未设置线路' }}</span>
+                          <span class="quick-customer-phone">{{ item.phone || '-' }}</span>
+                        </div>
+                      </el-option>
+                    </el-select>
+                    <el-select v-model="activeRouteId" placeholder="请选择配送地" filterable @change="handleRouteChange">
+                      <el-option v-for="item in deliveryRouteOptions" :key="item.routeId" :label="item.routeName" :value="item.routeId" />
+                    </el-select>
+                  </div>
                 </el-form-item>
               </el-col>
               <el-col :span="12">
@@ -270,6 +293,7 @@
                           filterable
                           clearable
                           style="width: 100%"
+                          @visible-change="handleProductDropdownVisible"
                           @change="(value) => handleProductChange(row, value)"
                         />
                       </template>
@@ -406,6 +430,7 @@
               :max="Number(row.totalAmount || 0)"
               controls-position="right"
               style="width: 140px"
+              @focus="selectNumberInput"
             />
           </template>
         </el-table-column>
@@ -439,7 +464,7 @@ import {
 import { CustomerOrderVO, DeliveryOrderForm, DeliveryOrderItemVO, DeliveryOrderQuery, DeliveryOrderVO } from '@/api/system/deliveryOrder/types';
 import { listRouteOptions } from '@/api/system/route';
 import { RouteVO } from '@/api/system/route/types';
-import { getCustomerTopProducts, getRouteCustomerOrderStats, listCustomer } from '@/api/system/customer';
+import { getCustomer, getCustomerTopProducts, getRouteCustomerOrderStats, listCustomer } from '@/api/system/customer';
 import { CustomerVO, RouteCustomerOrderStatsVO } from '@/api/system/customer/types';
 import { getConfigKey } from '@/api/system/config';
 import { listProduct } from '@/api/system/product';
@@ -482,9 +507,12 @@ const routeStartPoint = ref<RouteStartPoint>({ ...defaultRouteStartPoint });
 const deliveryOrderList = ref<DeliveryOrderVO[]>([]);
 const routeOptions = ref<RouteVO[]>([]);
 const customerOptions = ref<CustomerVO[]>([]);
+const allCustomerOptions = ref<CustomerVO[]>([]);
 const routeCustomerOrderStats = ref<RouteCustomerOrderStatsVO[]>([]);
 const productOptions = ref<ProductVO[]>([]);
+const productOptionsLoading = ref(false);
 const activeRouteId = ref<string | number>();
+const quickCustomerId = ref<string | number>();
 const activeCustomerOrderNames = ref<string[]>([]);
 const buttonLoading = ref(false);
 const loading = ref(true);
@@ -578,6 +606,16 @@ const selectedHasArchived = computed(() => selectedRows.value.some((item) => ite
 
 const selectedRouteName = computed(() => routeOptions.value.find((item) => item.routeId === activeRouteId.value)?.routeName);
 const primaryRouteName = computed(() => routeOptions.value.find((item) => item.routeId === form.value.routeId)?.routeName);
+const selectedQuickCustomer = computed(() => allCustomerOptions.value.find((item) => String(item.customerId) === String(quickCustomerId.value)));
+const deliveryRouteOptions = computed(() => {
+  const routeId = selectedQuickCustomer.value?.routeId;
+  if (!routeId) {
+    return routeOptions.value;
+  }
+  const matchedRoute = routeOptions.value.find((item) => String(item.routeId) === String(routeId));
+  return matchedRoute ? [matchedRoute] : routeOptions.value;
+});
+const quickCustomerOptions = computed(() => allCustomerOptions.value);
 
 const getPointDistance = (from: Pick<RouteStartPoint, 'longitude' | 'latitude'>, to: Pick<RouteStartPoint, 'longitude' | 'latitude'>) => {
   const toRad = (value: number) => (value * Math.PI) / 180;
@@ -724,9 +762,28 @@ const getRouteOptions = async () => {
   routeOptions.value = res.data;
 };
 
+const getAllCustomerOptions = async () => {
+  const res = await listCustomer({ pageNum: 1, pageSize: 9999 });
+  allCustomerOptions.value = res.rows;
+};
+
 const getProductOptions = async () => {
-  const res = await listProduct({ pageNum: 1, pageSize: 9999 });
-  productOptions.value = res.rows;
+  if (productOptionsLoading.value) {
+    return;
+  }
+  productOptionsLoading.value = true;
+  try {
+    const res = await listProduct({ pageNum: 1, pageSize: 9999 });
+    productOptions.value = res.rows;
+  } finally {
+    productOptionsLoading.value = false;
+  }
+};
+
+const handleProductDropdownVisible = (visible: boolean) => {
+  if (visible) {
+    getProductOptions();
+  }
 };
 
 const parseRouteStartPoint = (value?: string): RouteStartPoint | undefined => {
@@ -784,6 +841,35 @@ const getCustomersByRoute = async (routeId?: string | number) => {
   await renderRouteMap();
 };
 
+const replaceCustomerCache = (customer: CustomerVO) => {
+  const replaceInList = (list: CustomerVO[]) => {
+    const index = list.findIndex((item) => item.customerId === customer.customerId);
+    if (index >= 0) {
+      list.splice(index, 1, { ...list[index], ...customer });
+    }
+  };
+  replaceInList(customerOptions.value);
+  replaceInList(allCustomerOptions.value);
+};
+
+const getLatestCustomerDebt = async (customerId?: string | number) => {
+  if (!customerId) {
+    return 0;
+  }
+  const res = await getCustomer(customerId);
+  replaceCustomerCache(res.data);
+  return Number(res.data?.debt || 0);
+};
+
+const syncCurrentDebtOrders = async () => {
+  const debtOrders = form.value.customerOrders.filter((order) => order.customerId && getOrderDebtAmount(order) > 0);
+  await Promise.all(
+    debtOrders.map(async (order) => {
+      order.previousDebtAmount = await getLatestCustomerDebt(order.customerId);
+    })
+  );
+};
+
 const getList = async () => {
   loading.value = true;
   const res = await listDeliveryOrder(queryParams.value);
@@ -793,10 +879,38 @@ const getList = async () => {
 };
 
 const handleRouteChange = async () => {
+  if (selectedQuickCustomer.value && String(selectedQuickCustomer.value.routeId) !== String(activeRouteId.value)) {
+    quickCustomerId.value = undefined;
+  }
   if (!form.value.routeId || !form.value.customerOrders.length) {
     form.value.routeId = activeRouteId.value;
   }
   await getCustomersByRoute(activeRouteId.value);
+};
+
+const handleQuickCustomerSelect = async () => {
+  const customer = selectedQuickCustomer.value;
+  if (!customer) {
+    return;
+  }
+  if (!customer.routeId) {
+    proxy?.$modal.msgWarning(`${customer.alias || customer.name} 未设置配送地`);
+    return;
+  }
+  activeRouteId.value = customer.routeId;
+  if (!form.value.routeId || !form.value.customerOrders.length) {
+    form.value.routeId = customer.routeId;
+  }
+  await getCustomersByRoute(customer.routeId);
+};
+
+const handleQuickCustomerClear = () => {
+  quickCustomerId.value = undefined;
+};
+
+const getQuickCustomerLabel = (customer: CustomerVO) => {
+  const name = customer.alias ? `${customer.alias}（${customer.name}）` : customer.name;
+  return [name, customer.routeName || '未设置线路', customer.phone].filter(Boolean).join(' / ');
 };
 
 const cancel = () => {
@@ -807,6 +921,7 @@ const cancel = () => {
 const reset = () => {
   form.value = { ...initFormData, customerOrders: [] };
   activeRouteId.value = undefined;
+  quickCustomerId.value = undefined;
   activeCustomerOrderNames.value = [];
   customerOptions.value = [];
   deliveryOrderFormRef.value?.resetFields();
@@ -831,6 +946,7 @@ const handleSelectionChange = (selection: DeliveryOrderVO[]) => {
 
 const handleAdd = () => {
   reset();
+  getAllCustomerOptions();
   dialog.visible = true;
   dialog.title = '新增配货装车单';
 };
@@ -853,7 +969,7 @@ const openAddFromRouteQuery = () => {
 const handleUpdate = async (row?: DeliveryOrderVO) => {
   reset();
   const _deliveryId = row?.deliveryId || ids.value[0];
-  const res = await getDeliveryOrder(_deliveryId);
+  const [res] = await Promise.all([getDeliveryOrder(_deliveryId), getAllCustomerOptions()]);
   Object.assign(form.value, res.data);
   form.value.customerOrders = res.data.customerOrders || [];
   activeRouteId.value = form.value.routeId;
@@ -861,6 +977,7 @@ const handleUpdate = async (row?: DeliveryOrderVO) => {
   dialog.visible = true;
   dialog.title = '修改配货装车单';
   await getCustomersByRoute(activeRouteId.value);
+  await syncCurrentDebtOrders();
 };
 
 const loadAmap = async () => {
@@ -1209,6 +1326,7 @@ const createItemFromProduct = (product: ProductVO): DeliveryOrderItemVO => ({
 });
 
 const addItem = (order: CustomerOrderVO) => {
+  getProductOptions();
   order.items.push(createEmptyItem());
   const orderName = String(order.customerId);
   if (!activeCustomerOrderNames.value.includes(orderName)) {
@@ -1225,6 +1343,7 @@ const addTopProducts = async (order: CustomerOrderVO) => {
     proxy?.$modal.msgWarning('请先选择客户');
     return;
   }
+  await getProductOptions();
   const res = await getCustomerTopProducts(order.customerId);
   const existingProductIds = new Set(order.items.map((item) => item.productId).filter(Boolean));
   const products = (res.data || [])
@@ -1252,8 +1371,8 @@ const getCustomerDebt = (order: CustomerOrderVO) => {
 
 const getOrderDebtAmount = (order: CustomerOrderVO) => Number(order.previousDebtAmount || 0);
 
-const addCustomerDebt = (order: CustomerOrderVO) => {
-  const debt = getCustomerDebt(order);
+const addCustomerDebt = async (order: CustomerOrderVO) => {
+  const debt = await getLatestCustomerDebt(order.customerId);
   if (debt <= 0) {
     proxy?.$modal.msgWarning('该客户暂无欠款');
     return;
@@ -1569,6 +1688,42 @@ watch(
 
 .delivery-info-grid {
   margin-bottom: 6px;
+}
+
+.delivery-route-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.9fr);
+  gap: 8px;
+  width: 100%;
+}
+
+.quick-customer-option {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) 120px 110px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.quick-customer-name {
+  min-width: 0;
+  overflow: hidden;
+  color: #303133;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-customer-route,
+.quick-customer-phone {
+  overflow: hidden;
+  color: #606266;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-customer-route {
+  color: #0f766e;
 }
 
 .route-map-panel {

@@ -29,7 +29,7 @@
             :value="String(order.orderId || order.customerId)"
           />
         </el-select>
-        <el-button icon="Refresh" @click="loadData">刷新</el-button>
+        <el-button icon="Refresh" @click="refreshPrintData">刷新</el-button>
         <el-button type="primary" icon="Printer" @click="professionalPrintPage">{{
           printScope === 'selected' ? '专业打印选中' : '专业打印全部'
         }}</el-button>
@@ -118,6 +118,7 @@
 
 <script setup name="DeliveryOrderPrint" lang="ts">
 import { getDeliveryOrder } from '@/api/system/deliveryOrder';
+import { getConfigKey } from '@/api/system/config';
 import { CustomerOrderVO, DeliveryOrderItemVO, DeliveryOrderVO } from '@/api/system/deliveryOrder/types';
 import { getCurrentTenant } from '@/api/system/tenant';
 import { saveAs } from 'file-saver';
@@ -165,6 +166,8 @@ const selectedOrderIds = ref<string[]>([]);
 const detailRowsPerPage = 10;
 const printTitle = ref('小莲粮油销售单');
 const printPhone = ref('13599653816  13605001715');
+const printSaleTitleConfigKey = 'biz.print.saleTitle';
+const printSalePhoneConfigKey = 'biz.print.salePhone';
 
 const orderKey = (order: CustomerOrderVO) => String(order.orderId || order.customerId);
 
@@ -317,18 +320,33 @@ const escapeHtml = (value?: string | number) => {
 const escapeXml = escapeHtml;
 
 const loadPrintTenant = async () => {
+  let saleTitle = '';
+  let salePhone = '';
+  try {
+    const [titleRes, phoneRes] = await Promise.all([getConfigKey(printSaleTitleConfigKey), getConfigKey(printSalePhoneConfigKey)]);
+    saleTitle = titleRes.data?.trim() || '';
+    salePhone = phoneRes.data?.trim() || '';
+  } catch {
+    // 参数配置读取失败时继续使用租户资料兜底。
+  }
+
   try {
     const res = await getCurrentTenant();
     const companyName = res.data?.companyName?.trim();
     const contactPhone = res.data?.contactPhone?.trim();
-    if (companyName) {
-      printTitle.value = `${companyName}销售单`;
+    if (saleTitle || companyName) {
+      printTitle.value = saleTitle || `${companyName}销售单`;
     }
-    if (contactPhone) {
-      printPhone.value = contactPhone;
+    if (salePhone || contactPhone) {
+      printPhone.value = salePhone || contactPhone;
     }
   } catch {
-    // 租户资料读取失败时使用本地兜底打印抬头。
+    if (saleTitle) {
+      printTitle.value = saleTitle;
+    }
+    if (salePhone) {
+      printPhone.value = salePhone;
+    }
   }
 };
 
@@ -916,6 +934,10 @@ const loadData = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+const refreshPrintData = async () => {
+  await Promise.all([loadPrintTenant(), loadData()]);
 };
 
 const printPage = () => {
