@@ -148,7 +148,11 @@
                       v-model="quickCustomerId"
                       placeholder="输入客户名/简称/电话查线路"
                       filterable
+                      remote
+                      reserve-keyword
                       clearable
+                      :remote-method="searchQuickCustomers"
+                      :loading="quickCustomerLoading"
                       @change="handleQuickCustomerSelect"
                       @clear="handleQuickCustomerClear"
                     >
@@ -259,14 +263,7 @@
                   <div class="mb8">
                     <el-button type="primary" plain icon="Plus" @click="addItem(order)">添加商品</el-button>
                     <el-button type="success" plain icon="ShoppingCart" @click="addTopProducts(order)">添加常购商品</el-button>
-                    <el-button
-                      v-if="!getOrderDebtAmount(order)"
-                      type="warning"
-                      plain
-                      icon="Coin"
-                      :disabled="getCustomerDebt(order) <= 0"
-                      @click="addCustomerDebt(order)"
-                    >
+                    <el-button v-if="!getOrderDebtAmount(order)" type="warning" plain icon="Coin" @click="addCustomerDebt(order)">
                       添加欠款{{ getCustomerDebt(order) > 0 ? ` ${formatAmount(getCustomerDebt(order))}` : '' }}
                     </el-button>
                     <el-button v-else type="warning" plain icon="Close" @click="removeCustomerDebt(order)">
@@ -368,6 +365,33 @@
         <el-descriptions-item label="备注" :span="2">{{ detailData.remark }}</el-descriptions-item>
       </el-descriptions>
 
+      <div v-if="detailData" class="detail-profit-summary">
+        <div class="detail-profit-card">
+          <span>商品销售额</span>
+          <strong>{{ formatAmount(calcDetailTotalSale(detailData)) }}</strong>
+        </div>
+        <div class="detail-profit-card">
+          <span>商品成本</span>
+          <strong>{{ formatAmount(calcDetailTotalCost(detailData)) }}</strong>
+        </div>
+        <div class="detail-profit-card is-profit">
+          <span>商品利润</span>
+          <strong>{{ formatAmount(calcDetailTotalProfit(detailData)) }}</strong>
+        </div>
+        <div class="detail-profit-card">
+          <span>毛利率</span>
+          <strong>{{ formatPercent(calcDetailProfitRate(calcDetailTotalProfit(detailData), calcDetailTotalSale(detailData))) }}</strong>
+        </div>
+        <div class="detail-profit-card">
+          <span>带入欠款</span>
+          <strong>{{ formatAmount(calcDetailTotalDebt(detailData)) }}</strong>
+        </div>
+        <div class="detail-profit-card">
+          <span>整车合计</span>
+          <strong>{{ formatAmount(calcDetailTotalAmount(detailData)) }}</strong>
+        </div>
+      </div>
+
       <el-divider content-position="left">客户订单</el-divider>
       <el-empty v-if="!detailData?.customerOrders?.length" description="暂无客户订单" />
       <el-collapse v-else>
@@ -383,6 +407,14 @@
             <span v-if="detailData?.status === '已归档'" class="ml-3 text-gray-500">未收：{{ formatAmount(order.unpaidAmount) }}</span>
             <el-button class="ml-3" link type="primary" icon="Printer" @click.stop="handlePrint(detailData, order.orderId)">打印</el-button>
           </template>
+          <div class="customer-profit-summary">
+            <span>商品销售：{{ formatAmount(calcDetailOrderSale(order)) }}</span>
+            <span>商品成本：{{ formatAmount(calcDetailOrderCost(order)) }}</span>
+            <span class="is-profit">商品利润：{{ formatAmount(calcDetailOrderProfit(order)) }}</span>
+            <span>毛利率：{{ formatPercent(calcDetailProfitRate(calcDetailOrderProfit(order), calcDetailOrderSale(order))) }}</span>
+            <span>带入欠款：{{ formatAmount(order.previousDebtAmount) }}</span>
+            <span>客户小计：{{ formatAmount(calcDetailOrderTotal(order)) }}</span>
+          </div>
           <el-table border :data="order.items">
             <el-table-column label="商品" prop="productName" min-width="160" />
             <el-table-column label="规格" prop="specification" width="110" />
@@ -391,7 +423,13 @@
             <el-table-column label="销售价" prop="salePrice" width="110" />
             <el-table-column label="成本价" prop="costPrice" width="110" />
             <el-table-column label="金额" prop="amount" width="120">
-              <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+              <template #default="{ row }">{{ formatAmount(calcDetailItemSale(row)) }}</template>
+            </el-table-column>
+            <el-table-column label="成本金额" width="120">
+              <template #default="{ row }">{{ formatAmount(calcDetailItemCost(row)) }}</template>
+            </el-table-column>
+            <el-table-column label="利润" width="120">
+              <template #default="{ row }">{{ formatAmount(calcDetailItemProfit(row)) }}</template>
             </el-table-column>
           </el-table>
         </el-collapse-item>
@@ -513,6 +551,7 @@ const productOptions = ref<ProductVO[]>([]);
 const productOptionsLoading = ref(false);
 const activeRouteId = ref<string | number>();
 const quickCustomerId = ref<string | number>();
+const quickCustomerLoading = ref(false);
 const activeCustomerOrderNames = ref<string[]>([]);
 const buttonLoading = ref(false);
 const loading = ref(true);
@@ -762,11 +801,6 @@ const getRouteOptions = async () => {
   routeOptions.value = res.data;
 };
 
-const getAllCustomerOptions = async () => {
-  const res = await listCustomer({ pageNum: 1, pageSize: 9999 });
-  allCustomerOptions.value = res.rows;
-};
-
 const getProductOptions = async () => {
   if (productOptionsLoading.value) {
     return;
@@ -846,10 +880,34 @@ const replaceCustomerCache = (customer: CustomerVO) => {
     const index = list.findIndex((item) => item.customerId === customer.customerId);
     if (index >= 0) {
       list.splice(index, 1, { ...list[index], ...customer });
+      return true;
     }
+    return false;
   };
   replaceInList(customerOptions.value);
-  replaceInList(allCustomerOptions.value);
+  if (!replaceInList(allCustomerOptions.value)) {
+    allCustomerOptions.value.push(customer);
+  }
+};
+
+const searchQuickCustomers = async (keyword: string) => {
+  const trimmedKeyword = keyword.trim();
+  if (!trimmedKeyword) {
+    allCustomerOptions.value = selectedQuickCustomer.value ? [selectedQuickCustomer.value] : [];
+    return;
+  }
+  quickCustomerLoading.value = true;
+  try {
+    const res = await listCustomer({ pageNum: 1, pageSize: 20, keyword: trimmedKeyword });
+    allCustomerOptions.value = res.rows;
+  } finally {
+    quickCustomerLoading.value = false;
+  }
+};
+
+const syncOrderCustomerCaches = async () => {
+  const customerIds = Array.from(new Set(form.value.customerOrders.map((order) => order.customerId).filter(Boolean)));
+  await Promise.all(customerIds.map((customerId) => getLatestCustomerDebt(customerId)));
 };
 
 const getLatestCustomerDebt = async (customerId?: string | number) => {
@@ -924,6 +982,7 @@ const reset = () => {
   quickCustomerId.value = undefined;
   activeCustomerOrderNames.value = [];
   customerOptions.value = [];
+  allCustomerOptions.value = [];
   deliveryOrderFormRef.value?.resetFields();
 };
 
@@ -946,7 +1005,6 @@ const handleSelectionChange = (selection: DeliveryOrderVO[]) => {
 
 const handleAdd = () => {
   reset();
-  getAllCustomerOptions();
   dialog.visible = true;
   dialog.title = '新增配货装车单';
 };
@@ -969,7 +1027,7 @@ const openAddFromRouteQuery = () => {
 const handleUpdate = async (row?: DeliveryOrderVO) => {
   reset();
   const _deliveryId = row?.deliveryId || ids.value[0];
-  const [res] = await Promise.all([getDeliveryOrder(_deliveryId), getAllCustomerOptions()]);
+  const res = await getDeliveryOrder(_deliveryId);
   Object.assign(form.value, res.data);
   form.value.customerOrders = res.data.customerOrders || [];
   activeRouteId.value = form.value.routeId;
@@ -977,6 +1035,7 @@ const handleUpdate = async (row?: DeliveryOrderVO) => {
   dialog.visible = true;
   dialog.title = '修改配货装车单';
   await getCustomersByRoute(activeRouteId.value);
+  await syncOrderCustomerCaches();
   await syncCurrentDebtOrders();
 };
 
@@ -1365,7 +1424,9 @@ const addTopProducts = async (order: CustomerOrderVO) => {
 };
 
 const getCustomerDebt = (order: CustomerOrderVO) => {
-  const customer = customerOptions.value.find((item) => item.customerId === order.customerId);
+  const customer =
+    customerOptions.value.find((item) => item.customerId === order.customerId) ||
+    allCustomerOptions.value.find((item) => item.customerId === order.customerId);
   return Number(customer?.debt || 0);
 };
 
@@ -1432,6 +1493,66 @@ const calcDeliveryTotal = () => {
 
 const formatAmount = (value?: number) => {
   return Number(value || 0).toFixed(2);
+};
+
+const formatPercent = (value?: number) => {
+  return `${Number(value || 0).toFixed(2)}%`;
+};
+
+const calcDetailItemSale = (item: DeliveryOrderItemVO) => {
+  const amount = Number(item.amount);
+  if (Number.isFinite(amount) && amount > 0) {
+    return amount;
+  }
+  return Number(item.quantity || 0) * Number(item.salePrice || 0);
+};
+
+const calcDetailItemCost = (item: DeliveryOrderItemVO) => {
+  return Number(item.quantity || 0) * Number(item.costPrice || 0);
+};
+
+const calcDetailItemProfit = (item: DeliveryOrderItemVO) => {
+  return calcDetailItemSale(item) - calcDetailItemCost(item);
+};
+
+const calcDetailOrderSale = (order: CustomerOrderVO) => {
+  return order.items.reduce((sum, item) => sum + calcDetailItemSale(item), 0);
+};
+
+const calcDetailOrderCost = (order: CustomerOrderVO) => {
+  return order.items.reduce((sum, item) => sum + calcDetailItemCost(item), 0);
+};
+
+const calcDetailOrderProfit = (order: CustomerOrderVO) => {
+  return calcDetailOrderSale(order) - calcDetailOrderCost(order);
+};
+
+const calcDetailOrderTotal = (order: CustomerOrderVO) => {
+  return Number(order.totalAmount || 0) || calcDetailOrderSale(order) + Number(order.previousDebtAmount || 0);
+};
+
+const calcDetailTotalSale = (deliveryOrder: DeliveryOrderVO) => {
+  return deliveryOrder.customerOrders?.reduce((sum, order) => sum + calcDetailOrderSale(order), 0) || 0;
+};
+
+const calcDetailTotalCost = (deliveryOrder: DeliveryOrderVO) => {
+  return deliveryOrder.customerOrders?.reduce((sum, order) => sum + calcDetailOrderCost(order), 0) || 0;
+};
+
+const calcDetailTotalProfit = (deliveryOrder: DeliveryOrderVO) => {
+  return calcDetailTotalSale(deliveryOrder) - calcDetailTotalCost(deliveryOrder);
+};
+
+const calcDetailTotalDebt = (deliveryOrder: DeliveryOrderVO) => {
+  return deliveryOrder.customerOrders?.reduce((sum, order) => sum + Number(order.previousDebtAmount || 0), 0) || 0;
+};
+
+const calcDetailTotalAmount = (deliveryOrder: DeliveryOrderVO) => {
+  return Number(deliveryOrder.totalAmount || 0) || calcDetailTotalSale(deliveryOrder) + calcDetailTotalDebt(deliveryOrder);
+};
+
+const calcDetailProfitRate = (profit: number, saleAmount: number) => {
+  return saleAmount ? (profit / saleAmount) * 100 : 0;
 };
 
 const selectNumberInput = (event: FocusEvent) => {
@@ -1676,6 +1797,59 @@ watch(
   font-weight: 600;
   line-height: 20px;
   white-space: nowrap;
+}
+
+.detail-profit-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.detail-profit-card {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.detail-profit-card span {
+  display: block;
+  color: #606266;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.detail-profit-card strong {
+  display: block;
+  margin-top: 4px;
+  color: #1f2d3d;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.detail-profit-card.is-profit strong {
+  color: #0f766e;
+}
+
+.customer-profit-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-bottom: 10px;
+  padding: 9px 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.customer-profit-summary .is-profit {
+  color: #0f766e;
+  font-weight: 600;
 }
 
 .section-title {

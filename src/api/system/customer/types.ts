@@ -244,6 +244,11 @@ export interface CustomerForm extends BaseEntity {
 
 export interface CustomerQuery extends PageQuery {
   /**
+   * 快速搜索关键字
+   */
+  keyword?: string;
+
+  /**
    * 客户名称
    */
   name?: string;

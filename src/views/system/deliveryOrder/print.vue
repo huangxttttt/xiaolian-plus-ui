@@ -492,8 +492,8 @@ const lodopPrintStyle = `
   .invoice-title p,
   .invoice-meta p {
     margin: 0 0 3px;
-    font-size: 13px;
-    line-height: 1.1;
+    font-size: 15px;
+    line-height: 1.12;
   }
 
   .customer-info strong {
@@ -506,7 +506,7 @@ const lodopPrintStyle = `
 
   .invoice-title h1 {
     margin: 0 0 5px;
-    font-size: 22px;
+    font-size: 30px;
     line-height: 1;
     font-weight: 700;
     letter-spacing: 0;
@@ -521,21 +521,21 @@ const lodopPrintStyle = `
     border-collapse: collapse;
     table-layout: fixed;
     color: #1e3f7a;
-    font-size: 13px;
+    font-size: 15px;
   }
 
   .sale-table th,
   .sale-table td {
-    height: 6.3mm;
-    padding: 1px 4px;
+    height: 6.6mm;
+    padding: 1px 3px;
     border: 1px solid #4f66a3;
-    line-height: 1.05;
+    line-height: 1.08;
     text-align: left;
     vertical-align: middle;
   }
 
   .sale-table th {
-    height: 5.8mm;
+    height: 6.2mm;
     font-weight: 700;
     text-align: center;
   }
@@ -569,7 +569,7 @@ const lodopPrintStyle = `
   }
 
   .total-row td {
-    height: 6.2mm;
+    height: 6.8mm;
     font-weight: 700;
   }
 
@@ -584,7 +584,7 @@ const lodopPrintStyle = `
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 700;
     color: #1e3f7a;
   }
@@ -597,7 +597,7 @@ const lodopPrintStyle = `
   }
 
   .invoice-footer {
-    font-size: 13px;
+    font-size: 15px;
   }
 
   .signature-row {
@@ -614,7 +614,7 @@ const lodopPrintStyle = `
 
   .remark {
     margin: 2px 0 0;
-    font-size: 12px;
+    font-size: 13px;
   }
 `;
 
@@ -1022,8 +1022,8 @@ const printPage = () => {
     .invoice-title p,
     .invoice-meta p {
       margin: 0 0 3px;
-      font-size: 13px;
-      line-height: 1.1;
+      font-size: 15px;
+      line-height: 1.12;
     }
 
     .customer-info strong {
@@ -1036,7 +1036,7 @@ const printPage = () => {
 
     .invoice-title h1 {
       margin: 0 0 5px;
-      font-size: 22px;
+      font-size: 30px;
       line-height: 1;
       font-weight: 700;
       letter-spacing: 0;
@@ -1051,15 +1051,15 @@ const printPage = () => {
       border-collapse: collapse;
       table-layout: fixed;
       color: #1e3f7a;
-      font-size: 13px;
+      font-size: 15px;
     }
 
     .sale-table th,
     .sale-table td {
-      height: 6.3mm;
-      padding: 1px 4px;
+      height: 6.6mm;
+      padding: 1px 3px;
       border: 1px solid #4f66a3;
-      line-height: 1.05;
+      line-height: 1.08;
       text-align: left;
       vertical-align: middle;
       page-break-inside: avoid;
@@ -1067,7 +1067,7 @@ const printPage = () => {
     }
 
     .sale-table th {
-      height: 5.8mm;
+      height: 6.2mm;
       font-weight: 700;
       text-align: center;
     }
@@ -1101,7 +1101,7 @@ const printPage = () => {
     }
 
     .total-row td {
-      height: 6.2mm;
+      height: 6.8mm;
       font-weight: 700;
     }
 
@@ -1116,7 +1116,7 @@ const printPage = () => {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      font-size: 13px;
+      font-size: 15px;
       font-weight: 700;
       color: #1e3f7a;
     }
@@ -1129,7 +1129,7 @@ const printPage = () => {
     }
 
     .invoice-footer {
-      font-size: 13px;
+      font-size: 15px;
     }
 
     .signature-row {
@@ -1150,7 +1150,7 @@ const printPage = () => {
 
     .remark {
       margin: 2px 0 0;
-      font-size: 12px;
+      font-size: 13px;
     }
   `;
 
@@ -1492,32 +1492,32 @@ onMounted(() => {
   .invoice-title p,
   .invoice-meta p {
     margin-bottom: 3px;
-    font-size: 13px;
-    line-height: 1.1;
+    font-size: 15px;
+    line-height: 1.12;
   }
 
   .invoice-title h1 {
     margin-bottom: 5px;
-    font-size: 22px;
+    font-size: 30px;
   }
 
   .sale-table {
-    font-size: 13px;
+    font-size: 15px;
   }
 
   .sale-table th,
   .sale-table td {
-    height: 6.3mm;
-    padding: 1px 4px;
-    line-height: 1.05;
+    height: 6.6mm;
+    padding: 1px 3px;
+    line-height: 1.08;
   }
 
   .sale-table th {
-    height: 5.8mm;
+    height: 6.2mm;
   }
 
   .total-row td {
-    height: 6.2mm;
+    height: 6.8mm;
   }
 
   .total-small-label {
@@ -1531,11 +1531,11 @@ onMounted(() => {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    font-size: 13px;
+    font-size: 15px;
   }
 
   .invoice-footer {
-    font-size: 13px;
+    font-size: 15px;
   }
 
   .signature-row {
@@ -1544,7 +1544,7 @@ onMounted(() => {
 
   .remark {
     margin-top: 2px;
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .sale-table,
